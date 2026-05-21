@@ -1,17 +1,19 @@
-/**
- * Hint Generator - Phase 2
- * Generate AI decision-support hints based on extracted signals.
- * Downstream relationships are derived from projects.json config.
- */
+import fs from 'fs';
+import path from 'path';
 
-const fs = require('fs');
-const path = require('path');
+import type {
+  AnalysisHints,
+  ErrorCluster,
+  HardFailure,
+  ProjectConfig,
+  SignalExtraction,
+} from './types';
 
-function loadProjectDownstream() {
+function loadProjectDownstream(): Record<string, string[]> {
   try {
     const file = path.join(__dirname, '..', '..', 'config', 'projects.json');
-    const projects = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const downstream = {};
+    const projects = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, any>;
+    const downstream: Record<string, string[]> = {};
     for (const [name, project] of Object.entries(projects)) {
       if (project.downstream && Array.isArray(project.downstream)) {
         downstream[name] = project.downstream;
@@ -23,9 +25,13 @@ function loadProjectDownstream() {
   }
 }
 
-function generateHints(signals, clusters, projectConfig) {
+export function generateHints(
+  signals: SignalExtraction,
+  clusters: ErrorCluster[],
+  projectConfig: ProjectConfig,
+): AnalysisHints {
   const projectDownstream = loadProjectDownstream();
-  const hints = {
+  const hints: AnalysisHints = {
     currentBestHypothesis: null,
     confidence: 'low',
     reasoning: [],
@@ -88,7 +94,7 @@ function generateHints(signals, clusters, projectConfig) {
   return hints;
 }
 
-function analyzeReviewFailure(failure, hints) {
+function analyzeReviewFailure(failure: HardFailure, hints: AnalysisHints): void {
   const fields = failure.extractedFields || {};
 
   if (fields.outputIsEmpty && fields.nodeIndex === 1) {
@@ -115,13 +121,19 @@ function analyzeReviewFailure(failure, hints) {
   }
 }
 
-function analyzeTimeoutFailure(failure, signals, hints, projectConfig, projectDownstream) {
+function analyzeTimeoutFailure(
+  failure: HardFailure,
+  signals: SignalExtraction,
+  hints: AnalysisHints,
+  projectConfig: ProjectConfig,
+  projectDownstream: Record<string, string[]>,
+): void {
   hints.currentBestHypothesis = `Task timed out at ${failure.layer} layer`;
   hints.confidence = 'medium';
   hints.reasoning.push(`Timeout error: ${failure.error}`);
 
   const downstreamMention = signals.crossProjectMentions.find(m =>
-    projectDownstream[projectConfig.name]?.includes(m.mentionedService)
+    projectDownstream[projectConfig.name]?.includes(m.mentionedService),
   );
 
   if (downstreamMention) {
@@ -134,7 +146,7 @@ function analyzeTimeoutFailure(failure, signals, hints, projectConfig, projectDo
   }
 }
 
-function analyzeRenderFailure(failure, hints) {
+function analyzeRenderFailure(failure: HardFailure, hints: AnalysisHints): void {
   hints.currentBestHypothesis = 'Render stage failed';
   hints.confidence = 'medium';
   hints.reasoning.push(`Render error: ${failure.code}`);
@@ -142,7 +154,11 @@ function analyzeRenderFailure(failure, hints) {
   hints.missingInformation.push('Need to confirm specific render error cause (e.g. missing resource, parameter error)');
 }
 
-function analyzeMediaFailure(failure, hints, projectConfig) {
+function analyzeMediaFailure(
+  failure: HardFailure,
+  hints: AnalysisHints,
+  _projectConfig: ProjectConfig,
+): void {
   const subtype = failure.subtype;
 
   if (subtype === 'FILE_NOT_FOUND' || subtype === 'CODEC_ERROR' || subtype === 'INVALID_FORMAT') {
@@ -159,12 +175,18 @@ function analyzeMediaFailure(failure, hints, projectConfig) {
   }
 }
 
-function analyzeDependencyFailure(failure, signals, hints, projectConfig, projectDownstream) {
+function analyzeDependencyFailure(
+  failure: HardFailure,
+  signals: SignalExtraction,
+  hints: AnalysisHints,
+  projectConfig: ProjectConfig,
+  projectDownstream: Record<string, string[]>,
+): void {
   hints.currentBestHypothesis = 'Downstream service call failed';
   hints.confidence = 'medium';
 
   const downstreamMention = signals.crossProjectMentions.find(m =>
-    failure.error?.toLowerCase().includes(m.mentionedService.toLowerCase())
+    failure.error?.toLowerCase().includes(m.mentionedService.toLowerCase()),
   );
 
   if (downstreamMention) {
@@ -178,7 +200,10 @@ function analyzeDependencyFailure(failure, signals, hints, projectConfig, projec
   }
 }
 
-function analyzeStateTransitions(transitions, hints) {
+function analyzeStateTransitions(
+  transitions: SignalExtraction['stateTransitions'],
+  hints: AnalysisHints,
+): void {
   if (transitions.length < 2) return;
 
   const first = transitions[0];
@@ -195,7 +220,12 @@ function analyzeStateTransitions(transitions, hints) {
   }
 }
 
-function analyzeCrossProjectMentions(mentions, hints, projectConfig, projectDownstream) {
+function analyzeCrossProjectMentions(
+  mentions: SignalExtraction['crossProjectMentions'],
+  hints: AnalysisHints,
+  projectConfig: ProjectConfig,
+  projectDownstream: Record<string, string[]>,
+): void {
   const downstreams = projectDownstream[projectConfig.name] || [];
 
   for (const mention of mentions) {
@@ -214,7 +244,7 @@ function analyzeCrossProjectMentions(mentions, hints, projectConfig, projectDown
   }
 }
 
-function analyzeClusters(clusters, hints) {
+function analyzeClusters(clusters: ErrorCluster[], hints: AnalysisHints): void {
   const errorClusters = clusters.filter(c => c.category === 'ERROR');
 
   if (errorClusters.length > 0) {
@@ -228,7 +258,7 @@ function analyzeClusters(clusters, hints) {
   }
 }
 
-function determineNextAction(hints, projectConfig) {
+function determineNextAction(hints: AnalysisHints, _projectConfig: ProjectConfig): void {
   if (hints.confidence === 'high' && hints.currentBestHypothesis) {
     hints.suggestedNextAction = hints.suggestedNextAction || 'Issue located, generate customer response';
     return;
@@ -247,7 +277,3 @@ function determineNextAction(hints, projectConfig) {
     hints.suggestedNextAction = 'Generate preliminary conclusion based on current evidence, suggest user retry or wait for investigation';
   }
 }
-
-module.exports = {
-  generateHints,
-};

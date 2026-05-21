@@ -1,9 +1,6 @@
-/**
- * Log Cluster - Phase 3
- * Cluster and deduplicate logs to reduce AI information overload
- */
+import type { ErrorCluster, NormalizedEntry, QueryHit } from './types';
 
-function generateSignature(entry) {
+function generateSignature(entry: NormalizedEntry): string {
   const summary = entry.summary;
 
   const code = summary.code || 'NONE';
@@ -19,15 +16,15 @@ function generateSignature(entry) {
   return `${layer}:${level}:${event}`;
 }
 
-function selectRepresentative(cluster) {
+function selectRepresentative(cluster: NormalizedEntry[]): NormalizedEntry {
   const withIds = cluster.filter(e =>
-    e.summary.traceId || e.summary.taskId
+    e.summary.traceId || e.summary.taskId,
   );
 
   if (withIds.length > 0) {
     return withIds.sort((a, b) => {
-      const timeA = new Date(b.summary.time || 0).getTime();
-      const timeB = new Date(a.summary.time || 0).getTime();
+      const timeA = new Date(b.summary.time as string || 0).getTime();
+      const timeB = new Date(a.summary.time as string || 0).getTime();
       return timeA - timeB;
     })[0];
   }
@@ -35,8 +32,8 @@ function selectRepresentative(cluster) {
   return cluster[0];
 }
 
-function clusterLogs(hits, maxClusters = 10) {
-  const clusters = new Map();
+export function clusterLogs(hits: QueryHit[], maxClusters = 10): ErrorCluster[] {
+  const clusters = new Map<string, { signature: string; entries: NormalizedEntry[]; count: number }>();
 
   for (const hit of hits) {
     for (const entry of (hit.body || [])) {
@@ -50,11 +47,8 @@ function clusterLogs(hits, maxClusters = 10) {
         });
       }
 
-      clusters.get(signature).entries.push({
-        ...entry,
-        _sourceAlias: hit.source?.alias || hit.source?.name,
-      });
-      clusters.get(signature).count++;
+      clusters.get(signature)!.entries.push(entry);
+      clusters.get(signature)!.count++;
     }
   }
 
@@ -74,7 +68,7 @@ function clusterLogs(hits, maxClusters = 10) {
     const summary = representative.summary;
 
     const times = cluster.entries
-      .map(e => new Date(e.summary.time || 0).getTime())
+      .map(e => new Date(e.summary.time as string || 0).getTime())
       .filter(t => !isNaN(t));
 
     return {
@@ -104,7 +98,7 @@ function clusterLogs(hits, maxClusters = 10) {
   });
 }
 
-function inferCategory(signature) {
+function inferCategory(signature: string): string {
   if (signature.includes('ERROR')) return 'ERROR';
   if (signature.includes('WARN')) return 'WARNING';
   if (signature.includes('api') && signature.includes('INFO')) return 'API_ACCESS';
@@ -113,14 +107,10 @@ function inferCategory(signature) {
   return 'OTHER';
 }
 
-function getCriticalClusters(clusters, maxCount = 5) {
+export function getCriticalClusters(clusters: ErrorCluster[], maxCount = 5): ErrorCluster[] {
   return clusters
     .filter(c => c.category === 'ERROR' || c.count >= 3)
     .slice(0, maxCount);
 }
 
-module.exports = {
-  clusterLogs,
-  getCriticalClusters,
-  generateSignature,
-};
+export { generateSignature };

@@ -1,15 +1,18 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+
+import type { ProjectConfig, ProjectDefinition } from './types';
+
 const tencentcloud = require('tencentcloud-sdk-nodejs');
 const sls = require('@alicloud/sls20201230');
-const { tlsOpenapi } = require('@volcengine/openapi');
-const SlsClient = sls.default;
 const OpenApi = require('@alicloud/openapi-client');
+const { tlsOpenapi } = require('@volcengine/openapi');
 
+const SlsClient = sls.default;
 const ClsClient = tencentcloud.cls.v20201016.Client;
 const TlsService = tlsOpenapi.TlsService;
 
-const SLS_REGION_ENDPOINTS = {
+const SLS_REGION_ENDPOINTS: Record<string, string> = {
   'cn-beijing': 'cn-beijing.log.aliyuncs.com',
   'cn-shenzhen': 'cn-shenzhen.log.aliyuncs.com',
   'cn-shanghai': 'cn-shanghai.log.aliyuncs.com',
@@ -21,12 +24,12 @@ const SLS_REGION_ENDPOINTS = {
   'eu-central-1': 'eu-central-1.log.aliyuncs.com',
 };
 
-function readProjectsConfig() {
-  const file = path.join(__dirname, '..', 'config', 'projects.json');
+export function readProjectsConfig(): Record<string, ProjectDefinition> {
+  const file = path.join(__dirname, '..', '..', 'config', 'projects.json');
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
-function getProjectConfig(projectName, env) {
+export function getProjectConfig(projectName: string, env: string): ProjectConfig {
   const projects = readProjectsConfig();
   const project = projects[projectName];
   if (!project) {
@@ -52,7 +55,7 @@ function getProjectConfig(projectName, env) {
   };
 }
 
-function buildSlsClient(region) {
+export function buildSlsClient(region: string) {
   const accessKeyId = process.env.SLS_ACCESS_KEY_ID;
   const accessKeySecret = process.env.SLS_ACCESS_KEY_SECRET;
   if (!accessKeyId || !accessKeySecret) {
@@ -62,7 +65,7 @@ function buildSlsClient(region) {
   return new SlsClient(new OpenApi.Config({ accessKeyId, accessKeySecret, endpoint }));
 }
 
-function buildClsClient(region) {
+export function buildClsClient(region: string) {
   const secretId = process.env.CLS_SECRET_ID;
   const secretKey = process.env.CLS_SECRET_KEY;
   if (!secretId || !secretKey) {
@@ -75,7 +78,7 @@ function buildClsClient(region) {
   });
 }
 
-function buildTlsClient(region) {
+export function buildTlsClient(region: string) {
   const accessKeyId = process.env.TLS_ACCESS_KEY_ID;
   const secretKey = process.env.TLS_ACCESS_KEY_SECRET;
   const sessionToken = process.env.TLS_SESSION_TOKEN;
@@ -97,13 +100,16 @@ function buildTlsClient(region) {
   });
 }
 
-function quoteTerm(value) {
+function quoteTerm(value: string | number | undefined): string {
   return String(value || '').trim();
 }
 
-function buildKeywordQueries(order, termsByKey) {
-  const queries = [];
-  const seen = new Set();
+export function buildKeywordQueries(
+  order: string[] | undefined,
+  termsByKey: Record<string, string>,
+): string[] {
+  const queries: string[] = [];
+  const seen = new Set<string>();
 
   for (const template of order || []) {
     let query = template;
@@ -133,7 +139,7 @@ function buildKeywordQueries(order, termsByKey) {
   return queries;
 }
 
-function tryParseJson(value) {
+export function tryParseJson(value: unknown): unknown {
   if (typeof value !== 'string') {
     return null;
   }
@@ -144,7 +150,7 @@ function tryParseJson(value) {
   }
 }
 
-function extractEmbeddedJson(content) {
+export function extractEmbeddedJson(content: unknown): unknown {
   if (typeof content !== 'string') {
     return null;
   }
@@ -159,21 +165,9 @@ function extractEmbeddedJson(content) {
   return tryParseJson(trimmed.slice(firstBrace));
 }
 
-function toSingleLine(value) {
+export function toSingleLine(value: unknown): string {
   if (value === undefined || value === null) {
     return '';
   }
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : JSON.stringify(value);
 }
-
-module.exports = {
-  buildClsClient,
-  buildKeywordQueries,
-  buildSlsClient,
-  buildTlsClient,
-  extractEmbeddedJson,
-  getProjectConfig,
-  readProjectsConfig,
-  toSingleLine,
-  tryParseJson,
-};

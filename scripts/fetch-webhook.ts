@@ -1,9 +1,9 @@
-#!/usr/bin/env node
-require('dotenv').config();
-const { toSingleLine, tryParseJson } = require('./lib');
+#!/usr/bin/env tsx
+import 'dotenv/config';
+import { toSingleLine, tryParseJson } from './lib';
 
-function parseArgs(argv) {
-  const out = {
+import type { FetchWebhookArgs, NormalizedEntry, PreprocessResult, StageHints, TimelineEntry } from './lib/types';function parseArgs(argv: string[]): FetchWebhookArgs {
+  const out: FetchWebhookArgs = {
     taskId: '',
     apiUrl: process.env.WEBHOOK_API_URL,
     errorApiUrl: process.env.WEBHOOK_ERROR_API_URL,
@@ -38,7 +38,7 @@ function parseArgs(argv) {
   return out;
 }
 
-function parseResponseBody(text) {
+function parseResponseBody(text: string): any {
   const json = tryParseJson(text);
   if (json !== null) {
     return json;
@@ -46,9 +46,9 @@ function parseResponseBody(text) {
   return { rawText: text };
 }
 
-function findFirstValue(input, keys) {
-  const queue = [input];
-  const seen = new Set();
+function findFirstValue(input: unknown, keys: string[]): string {
+  const queue: unknown[] = [input];
+  const seen = new Set<unknown>();
 
   while (queue.length > 0) {
     const current = queue.shift();
@@ -61,7 +61,7 @@ function findFirstValue(input, keys) {
     seen.add(current);
 
     for (const key of keys) {
-      const value = current[key];
+      const value = (current as any)[key];
       if (value !== undefined && value !== null && value !== '') {
         return value;
       }
@@ -84,12 +84,12 @@ function findFirstValue(input, keys) {
   return '';
 }
 
-function parseNodeOutput(output) {
+function parseNodeOutput(output: string): Record<string, string> {
   const parts = String(output || '')
     .split(' | ')
     .map((part) => part.trim())
     .filter(Boolean);
-  const fields = {};
+  const fields: Record<string, string> = {};
 
   for (const part of parts) {
     const idx = part.indexOf(':');
@@ -126,7 +126,7 @@ function parseNodeOutput(output) {
   return fields;
 }
 
-function parseTimelineReport(report, payload, fallbackTaskId) {
+function parseTimelineReport(report: unknown, payload: any, fallbackTaskId: string): NormalizedEntry[] {
   if (typeof report !== 'string' || !report.trim()) {
     return [];
   }
@@ -135,7 +135,7 @@ function parseTimelineReport(report, payload, fallbackTaskId) {
   const workflowId = payload.workflow_id || payload.workflowId || '';
 
   const nodePattern = /(\d+)\.\[(.*?) \| duration:([^\]]+)\] node: ([^\n]+)\n\s*output: ([\s\S]*?)(?=\n\d+\.\[|$)/g;
-  const entries = [];
+  const entries: NormalizedEntry[] = [];
   let match;
 
   while ((match = nodePattern.exec(report)) !== null) {
@@ -170,6 +170,9 @@ function parseTimelineReport(report, payload, fallbackTaskId) {
         layer: 'workflow',
         sourceName: 'webhook-workflow',
         sourceKind: 'webhook',
+        hostName: '',
+        podName: '',
+        containerName: '',
         workflowName: workflowId,
         executionId: derivedExecutionId,
         nodeStep: Number(step),
@@ -189,7 +192,7 @@ function parseTimelineReport(report, payload, fallbackTaskId) {
   return entries;
 }
 
-function findRecords(payload, fallbackTaskId) {
+function findRecords(payload: any, fallbackTaskId: string): any[] {
   const timelineEntries = parseTimelineReport(payload?.ai_timeline_report, payload, fallbackTaskId);
   if (timelineEntries.length > 0) {
     return timelineEntries;
@@ -209,7 +212,7 @@ function findRecords(payload, fallbackTaskId) {
 
   for (const candidate of candidates) {
     if (Array.isArray(candidate)) {
-      return candidate.map((item) => ({ rawMode: true, item }));
+      return candidate.map((item: any) => ({ rawMode: true, item }));
     }
   }
 
@@ -220,7 +223,7 @@ function findRecords(payload, fallbackTaskId) {
   return [];
 }
 
-function normalizeGenericRecord(record, index, fallbackTaskId) {
+function normalizeGenericRecord(record: any, index: number, fallbackTaskId: string): NormalizedEntry {
   const time = findFirstValue(record, ['time', 'timestamp', 'createdAt', 'createTime', 'updatedAt', 'updateTime']);
   const level = findFirstValue(record, ['level', 'logLevel', 'severity']);
   const event = findFirstValue(record, ['event', 'action', 'node', 'nodeName', 'step', 'workflowNode']);
@@ -253,6 +256,9 @@ function normalizeGenericRecord(record, index, fallbackTaskId) {
       layer: 'workflow',
       sourceName,
       sourceKind: 'webhook',
+      hostName: '',
+      podName: '',
+      containerName: '',
       workflowName,
       executionId,
       index,
@@ -261,7 +267,7 @@ function normalizeGenericRecord(record, index, fallbackTaskId) {
   };
 }
 
-function normalizeRecord(record, index, fallbackTaskId) {
+function normalizeRecord(record: any, index: number, fallbackTaskId: string): NormalizedEntry {
   if (record && record.summary && record.raw) {
     return record;
   }
@@ -271,11 +277,11 @@ function normalizeRecord(record, index, fallbackTaskId) {
   return normalizeGenericRecord(record, index, fallbackTaskId);
 }
 
-function extractIdentifiers(entries, fallbackTaskId) {
-  const identifiers = { taskId: fallbackTaskId };
+function extractIdentifiers(entries: NormalizedEntry[], fallbackTaskId: string): Record<string, string> {
+  const identifiers: Record<string, string> = { taskId: fallbackTaskId };
   for (const entry of entries) {
     const summary = entry.summary || {};
-    for (const key of ['traceId', 'taskId', 'requestId', 'uid']) {
+    for (const key of ['traceId', 'taskId', 'requestId', 'uid'] as const) {
       if (!identifiers[key] && summary[key]) {
         identifiers[key] = summary[key];
       }
@@ -284,7 +290,7 @@ function extractIdentifiers(entries, fallbackTaskId) {
   return identifiers;
 }
 
-function toTimestamp(value) {
+function toTimestamp(value: unknown): number {
   if (value === undefined || value === null || value === '') {
     return 0;
   }
@@ -295,11 +301,11 @@ function toTimestamp(value) {
   if (Number.isFinite(numeric) && numeric > 0) {
     return numeric > 1000000000000 ? numeric : numeric * 1000;
   }
-  const parsed = Date.parse(value);
+  const parsed = Date.parse(String(value));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function buildTimeline(entries) {
+function buildTimeline(entries: NormalizedEntry[]): TimelineEntry[] {
   return entries
     .map((entry) => ({
       timestamp: toTimestamp(entry.summary.time),
@@ -325,7 +331,7 @@ function buildTimeline(entries) {
     });
 }
 
-function buildStageHints(timeline) {
+function buildStageHints(timeline: TimelineEntry[]): StageHints {
   const first = timeline[timeline.length - 1] || null;
   const last = timeline[0] || null;
   const lastErrored = timeline.find((item) => item.error || item.status === 'failed') || null;
@@ -356,9 +362,9 @@ function buildStageHints(timeline) {
   };
 }
 
-function buildResult(args, payload, meta = {}) {
+function buildResult(args: FetchWebhookArgs, payload: any, meta: { apiUrl?: string; route?: string } = {}): PreprocessResult {
   const records = findRecords(payload, args.taskId);
-  const hits = records.map((record, index) => normalizeRecord(record, index, args.taskId));
+  const hits = records.map((record: any, index: number) => normalizeRecord(record, index, args.taskId));
   const timeline = buildTimeline(hits);
 
   return {
@@ -366,6 +372,8 @@ function buildResult(args, payload, meta = {}) {
       project: 'webhook',
       env: 'prod',
       query: args.taskId,
+      hours: 0,
+      lines: 0,
       taskId: args.taskId,
       apiUrl: meta.apiUrl || args.apiUrl,
       backend: 'webhook',
@@ -385,6 +393,30 @@ function buildResult(args, payload, meta = {}) {
     failedSourceCount: 0,
     extractedIdentifiers: extractIdentifiers(hits, args.taskId),
     stageHints: buildStageHints(timeline),
+    signalExtraction: {
+      hardFailures: [],
+      infoFailures: [],
+      stateTransitions: [],
+      crossProjectMentions: [],
+      errorStacks: [],
+      subTasks: { total: 0, failed: [], completed: [], processing: [], unknown: [], summary: '0 completed / 0 failed / 0 processing / 0 unknown' },
+      errorClassification: { category: 'UNKNOWN', subcategory: null, confidence: 'low', message: null, shouldQueryDownstream: false, downstreamTargets: [], action: 'Manual analysis required' },
+      meta: { totalEntries: hits.length, project: 'webhook', extractedAt: new Date().toISOString() },
+    },
+    errorClusters: [],
+    analysisHints: {
+      currentBestHypothesis: null,
+      confidence: 'low',
+      reasoning: [],
+      supportingEvidence: [],
+      missingInformation: [],
+      suggestedNextAction: null,
+      shouldQueryDownstream: false,
+      downstreamSuggestions: [],
+      alternativeHypotheses: [],
+    },
+    fallbackInfo: null,
+    queryHints: [],
     timeline,
     sourceErrors: [],
     hits: hits.length > 0 ? [{
@@ -397,7 +429,7 @@ function buildResult(args, payload, meta = {}) {
   };
 }
 
-async function requestWebhook(apiUrl, taskId, token, timeoutMs) {
+async function requestWebhook(apiUrl: string, taskId: string, token: string, timeoutMs: number): Promise<any> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs));
 
@@ -425,14 +457,13 @@ async function requestWebhook(apiUrl, taskId, token, timeoutMs) {
   }
 }
 
-function hasUsableHits(result) {
+function hasUsableHits(result: PreprocessResult): boolean {
   return Boolean(result && Array.isArray(result.hits) && result.hits.length > 0 && result.hits.some((hit) => hit.count > 0));
 }
 
-async function fetchWebhook(args) {
+async function fetchWebhook(args: FetchWebhookArgs): Promise<PreprocessResult> {
   const token = process.env.WEBHOOK_TOKEN || '';
 
-  // Try error-detail endpoint first if available
   if (args.errorApiUrl) {
     const errorPayload = await requestWebhook(args.errorApiUrl, args.taskId, token, args.timeoutMs);
     const errorResult = buildResult(args, errorPayload, { apiUrl: args.errorApiUrl, route: 'error-first' });
@@ -441,7 +472,6 @@ async function fetchWebhook(args) {
     }
   }
 
-  // Fallback to general endpoint
   if (!args.apiUrl) {
     throw new Error('Missing WEBHOOK_API_URL environment variable or --api-url argument');
   }
@@ -449,7 +479,7 @@ async function fetchWebhook(args) {
   return buildResult(args, fallbackPayload, { apiUrl: args.apiUrl, route: 'fallback-general' });
 }
 
-function printSummary(summary, index) {
+function printSummary(summary: any, index: number): void {
   const lead = [summary.time, summary.level, summary.event, summary.content]
     .filter(Boolean)
     .join(' | ');
@@ -477,7 +507,7 @@ function printSummary(summary, index) {
   }
 }
 
-function printHumanOutput(result) {
+function printHumanOutput(result: PreprocessResult): void {
   console.log(`webhook/prod taskId=${result.query.taskId}`);
 
   if (!result.hits.length) {
@@ -514,7 +544,7 @@ function printHumanOutput(result) {
   }
 }
 
-async function main() {
+async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const result = await fetchWebhook(args);
 
@@ -529,7 +559,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+main().catch((error: any) => {
   console.error(error.stack || error.message);
   process.exit(1);
 });

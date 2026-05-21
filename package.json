@@ -2,13 +2,21 @@
   "name": "loghound",
   "version": "1.0.0",
   "description": "Production incident investigation tool — multi-cloud log aggregation, signal extraction, and AI-driven root cause analysis.",
-  "main": "scripts/fetch-logs.js",
+  "main": "scripts/fetch-logs.ts",
   "scripts": {
-    "fetch-logs": "node scripts/fetch-logs.js",
-    "fetch-webhook": "node scripts/fetch-webhook.js",
-    "fetch-uid": "node scripts/fetch-uid.js"
+    "fetch-logs": "tsx scripts/fetch-logs.ts",
+    "fetch-webhook": "tsx scripts/fetch-webhook.ts",
+    "fetch-uid": "tsx scripts/fetch-uid.ts"
   },
-  "keywords": ["incident", "log", "investigation", "sls", "cls", "tls", "loghound"],
+  "keywords": [
+    "incident",
+    "log",
+    "investigation",
+    "sls",
+    "cls",
+    "tls",
+    "loghound"
+  ],
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {
@@ -20,5 +28,10 @@
     "mongodb": "^7.1.1",
     "p-limit": "^7.3.0",
     "tencentcloud-sdk-nodejs": "^4.1.198"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3"
   }
 }

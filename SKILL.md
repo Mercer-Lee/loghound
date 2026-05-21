@@ -114,7 +114,7 @@ If current project logs show failure originated from downstream (e.g. "call to x
 
 ## Query entry point
 
-Use `scripts/fetch-logs.js`.
+Use `scripts/fetch-logs.ts`.
 
 ## Reference files
 

@@ -1,13 +1,24 @@
-/**
- * Signal Extractor - Phase 1
- * Extract key signals from raw logs to reduce AI cognitive load.
- * Task patterns and project keywords are loaded from config.
- */
+import fs from 'fs';
+import path from 'path';
 
-const fs = require('fs');
-const path = require('path');
+import type {
+  AnyRecord,
+  CrossProjectMention,
+  ErrorClassification,
+  ErrorStack,
+  HardFailure,
+  InfoFailure,
+  NormalizedEntry,
+  ProjectConfig,
+  QueryHit,
+  SignalExtraction,
+  StackFrame,
+  StateTransition,
+  SubTask,
+  SubTaskSummary,
+} from './types';
 
-function loadProjectConfig() {
+function loadProjectConfig(): Record<string, any> {
   try {
     const file = path.join(__dirname, '..', '..', 'config', 'projects.json');
     return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -16,12 +27,18 @@ function loadProjectConfig() {
   }
 }
 
-function buildTaskPatterns() {
+interface CompiledTaskPattern {
+  type: string;
+  regex: RegExp;
+}
+
+function buildTaskPatterns(): CompiledTaskPattern[] {
   const projects = loadProjectConfig();
-  const patterns = [];
+  const patterns: CompiledTaskPattern[] = [];
   for (const [, project] of Object.entries(projects)) {
-    if (project.taskPatterns && Array.isArray(project.taskPatterns)) {
-      for (const tp of project.taskPatterns) {
+    const proj = project as any;
+    if (proj.taskPatterns && Array.isArray(proj.taskPatterns)) {
+      for (const tp of proj.taskPatterns) {
         try {
           patterns.push({ type: tp.type, regex: new RegExp(tp.regex, 'i') });
         } catch {
@@ -33,25 +50,55 @@ function buildTaskPatterns() {
   return patterns;
 }
 
-function buildProjectKeywords(projects) {
-  const keywords = {};
+function buildProjectKeywords(projects: Record<string, any>): Record<string, string[]> {
+  const keywords: Record<string, string[]> = {};
   for (const [name, project] of Object.entries(projects)) {
-    if (project.keywords && Array.isArray(project.keywords)) {
-      keywords[name] = project.keywords;
+    const proj = project as any;
+    if (proj.keywords && Array.isArray(proj.keywords)) {
+      keywords[name] = proj.keywords;
     }
   }
   return keywords;
 }
 
-// Error stack extraction - parse stack trace from raw content
-function extractErrorStacks(entries) {
-  const stacks = [];
+function tryParseJsonSafe(str: string): unknown {
+  try {
+    return JSON.parse(str);
+  } catch {
+    return str;
+  }
+}
+
+function parseStackFrames(stackText: string): StackFrame[] {
+  const frames: StackFrame[] = [];
+  const frameRegex = /at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?/g;
+  let match;
+  while ((match = frameRegex.exec(stackText)) !== null) {
+    frames.push({
+      function: match[1] || '<anonymous>',
+      file: match[2],
+      line: parseInt(match[3], 10),
+      column: parseInt(match[4], 10),
+    });
+  }
+  return frames;
+}
+
+function extractErrorMessage(stackText: string): string {
+  const firstLine = stackText.split('\n')[0].trim();
+  const cleaned = firstLine.replace(/^["\\]+/, '').replace(/["\\]+$/, '');
+  const errorMatch = cleaned.match(/^(?:Error:\s*)?(.+)$/);
+  return errorMatch ? errorMatch[1] : cleaned;
+}
+
+function extractErrorStacks(entries: NormalizedEntry[]): ErrorStack[] {
+  const stacks: ErrorStack[] = [];
 
   for (const entry of entries) {
     const summary = entry.summary;
     const raw = entry.raw;
 
-    let stackText = null;
+    let stackText: string | null = null;
 
     if (summary.error && typeof summary.error === 'string' && summary.error.includes('\n')) {
       stackText = summary.error;
@@ -95,50 +142,15 @@ function extractErrorStacks(entries) {
   return stacks;
 }
 
-function tryParseJsonSafe(str) {
-  try {
-    return JSON.parse(str);
-  } catch {
-    return str;
-  }
-}
-
-function parseStackFrames(stackText) {
-  const frames = [];
-  const frameRegex = /at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?/g;
-  let match;
-  while ((match = frameRegex.exec(stackText)) !== null) {
-    frames.push({
-      function: match[1] || '<anonymous>',
-      file: match[2],
-      line: parseInt(match[3], 10),
-      column: parseInt(match[4], 10),
-    });
-  }
-  return frames;
-}
-
-function extractErrorMessage(stackText) {
-  const firstLine = stackText.split('\n')[0].trim();
-  const cleaned = firstLine.replace(/^["\\]+/, '').replace(/["\\]+$/, '');
-  const errorMatch = cleaned.match(/^(?:Error:\s*)?(.+)$/);
-  return errorMatch ? errorMatch[1] : cleaned;
-}
-
-// UUID task ID pattern (only extracted from specific fields to avoid system identifiers)
 const UUID_TASK_FIELDS = ['renderTaskId', 'taskId', 'workTaskId', 'batchWorkTaskId'];
 const UUID_REGEX = /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i;
 
-// Status keywords
 const SUCCESS_KEYWORDS = ['success', 'completed', 'succeeded'];
 const FAILURE_KEYWORDS = ['failed', 'error', 'failure'];
 
-/**
- * Extract sub-task tracking info using config-driven patterns
- */
-function extractSubTasks(entries) {
+function extractSubTasks(entries: NormalizedEntry[]): SubTaskSummary {
   const taskPatterns = buildTaskPatterns();
-  const taskMap = new Map();
+  const taskMap = new Map<string, SubTask>();
 
   for (const entry of entries) {
     const summary = entry.summary;
@@ -148,7 +160,6 @@ function extractSubTasks(entries) {
     const taskId = summary.taskId || '';
     const searchContent = `${taskId} ${content}`;
 
-    // Extract named sub-task IDs from configured patterns
     for (const pattern of taskPatterns) {
       const matches = searchContent.match(new RegExp(pattern.regex.source, 'gi')) || [];
       for (const match of matches) {
@@ -166,11 +177,10 @@ function extractSubTasks(entries) {
             uid: summary.uid,
           });
         }
-        updateTaskStatus(taskMap.get(normalizedId), summary, content);
+        updateTaskStatus(taskMap.get(normalizedId)!, summary, content);
       }
     }
 
-    // Extract UUID task IDs (only from specific fields)
     for (const field of UUID_TASK_FIELDS) {
       const fieldRegex = new RegExp(`"${field}"\\s*:\\s*"(${UUID_REGEX.source})"`, 'i');
       const match = rawContent.match(fieldRegex);
@@ -190,15 +200,15 @@ function extractSubTasks(entries) {
             uid: summary.uid,
           });
         }
-        updateTaskStatus(taskMap.get(normalizedId), summary, content);
+        updateTaskStatus(taskMap.get(normalizedId)!, summary, content);
       }
     }
   }
 
-  const failed = [];
-  const completed = [];
-  const processing = [];
-  const unknown = [];
+  const failed: SubTask[] = [];
+  const completed: SubTask[] = [];
+  const processing: SubTask[] = [];
+  const unknown: SubTask[] = [];
 
   for (const task of taskMap.values()) {
     switch (task.status) {
@@ -226,7 +236,7 @@ function extractSubTasks(entries) {
   };
 }
 
-function updateTaskStatus(task, summary, content) {
+function updateTaskStatus(task: SubTask, summary: any, content: string): void {
   const lowerContent = content.toLowerCase();
 
   for (const keyword of FAILURE_KEYWORDS) {
@@ -267,7 +277,7 @@ function updateTaskStatus(task, summary, content) {
   }
 }
 
-function extractErrorMessageFromContent(content) {
+function extractErrorMessageFromContent(content: string): string {
   const errorMatch = content.match(/(?:error|failed)[:：]\s*(.+?)(?:\s*at\s+|\.|$)/i);
   if (errorMatch) {
     return errorMatch[1].trim().substring(0, 200);
@@ -275,8 +285,7 @@ function extractErrorMessageFromContent(content) {
   return content.substring(0, 200);
 }
 
-// Key error code patterns — domain-agnostic hard failure signals
-const HARD_FAILURE_PATTERNS = {
+const HARD_FAILURE_PATTERNS: Record<string, { category: string; subtype: string }> = {
   'ResultReview.NotPass': { category: 'REVIEW', subtype: 'CONTENT_VIOLATION' },
   'Task.RenderFailed': { category: 'RENDER', subtype: 'RENDER_ERROR' },
   'RenderFailed': { category: 'RENDER', subtype: 'RENDER_ERROR' },
@@ -293,19 +302,7 @@ const HARD_FAILURE_PATTERNS = {
   'invalid media format': { category: 'MEDIA', subtype: 'INVALID_FORMAT' },
 };
 
-const ENTRY_REJECTION_PATTERNS = {
-  '401': { type: 'AUTH', reason: 'UNAUTHORIZED' },
-  '403': { type: 'AUTH', reason: 'FORBIDDEN' },
-  'invalid parameter': { type: 'PARAM', reason: 'INVALID_PARAM' },
-  'validation failed': { type: 'PARAM', reason: 'VALIDATION_FAILED' },
-};
-
-const SUCCESS_PATTERNS = {
-  'success': { type: 'SUCCESS' },
-  'completed': { type: 'COMPLETED' },
-};
-
-const INFO_FAILURE_PATTERNS = {
+const INFO_FAILURE_PATTERNS: Record<string, { category: string; subtype: string; severity: string }> = {
   'processing failed': { category: 'PROCESS', subtype: 'PROCESSING_FAILED', severity: 'HIGH' },
   'task failed': { category: 'PROCESS', subtype: 'TASK_FAILED', severity: 'HIGH' },
   'callback failed': { category: 'CALLBACK', subtype: 'CALLBACK_FAILED', severity: 'HIGH' },
@@ -315,8 +312,8 @@ const INFO_FAILURE_PATTERNS = {
   'unsupported format': { category: 'PARAM', subtype: 'FORMAT_UNSUPPORTED', severity: 'HIGH' },
 };
 
-function extractHardFailures(entries) {
-  const failures = [];
+function extractHardFailures(entries: NormalizedEntry[]): HardFailure[] {
+  const failures: HardFailure[] = [];
 
   for (const entry of entries) {
     const summary = entry.summary;
@@ -338,7 +335,7 @@ function extractHardFailures(entries) {
             traceId: summary.traceId,
             taskId: summary.taskId,
             requestId: summary.requestId,
-          }
+          },
         });
         break;
       }
@@ -348,8 +345,8 @@ function extractHardFailures(entries) {
   return failures;
 }
 
-function extractInfoFailures(entries) {
-  const failures = [];
+function extractInfoFailures(entries: NormalizedEntry[]): InfoFailure[] {
+  const failures: InfoFailure[] = [];
 
   for (const entry of entries) {
     const summary = entry.summary;
@@ -371,7 +368,7 @@ function extractInfoFailures(entries) {
             traceId: summary.traceId,
             taskId: summary.taskId,
             requestId: summary.requestId,
-          }
+          },
         });
         break;
       }
@@ -381,7 +378,7 @@ function extractInfoFailures(entries) {
   return failures;
 }
 
-function extractInfoFailureMessage(content, pattern) {
+function extractInfoFailureMessage(content: string, pattern: string): string {
   const sentences = content.split(/[|,;.\n]/);
   for (const sentence of sentences) {
     if (sentence.toLowerCase().includes(pattern.toLowerCase())) {
@@ -391,10 +388,10 @@ function extractInfoFailureMessage(content, pattern) {
   return pattern;
 }
 
-function extractCriticalFields(entry) {
+function extractCriticalFields(entry: NormalizedEntry): AnyRecord {
   const raw = entry.raw || {};
   const rawContent = JSON.stringify(raw);
-  const fields = {};
+  const fields: AnyRecord = {};
 
   const outputMatch = rawContent.match(/"output"[:\s]*([^,}]+)/);
   if (outputMatch) {
@@ -415,13 +412,13 @@ function extractCriticalFields(entry) {
   return fields;
 }
 
-function extractStateTransitions(entries) {
-  const transitions = [];
-  const seenStates = new Set();
+function extractStateTransitions(entries: NormalizedEntry[]): StateTransition[] {
+  const transitions: StateTransition[] = [];
+  const seenStates = new Set<string>();
 
   const sorted = [...entries].sort((a, b) => {
-    const timeA = new Date(a.summary.time || 0).getTime();
-    const timeB = new Date(b.summary.time || 0).getTime();
+    const timeA = new Date(a.summary.time as string || 0).getTime();
+    const timeB = new Date(b.summary.time as string || 0).getTime();
     return timeA - timeB;
   });
 
@@ -444,10 +441,10 @@ function extractStateTransitions(entries) {
   return transitions;
 }
 
-function extractCrossProjectMentions(entries, currentProject) {
+function extractCrossProjectMentions(entries: NormalizedEntry[], currentProject: string): CrossProjectMention[] {
   const projects = loadProjectConfig();
   const projectKeywords = buildProjectKeywords(projects);
-  const mentions = [];
+  const mentions: CrossProjectMention[] = [];
 
   for (const entry of entries) {
     const summary = entry.summary;
@@ -475,8 +472,21 @@ function extractCrossProjectMentions(entries, currentProject) {
   return mentions;
 }
 
-function classifyErrorPattern(entries, hardFailures, infoFailures, crossProjectMentions) {
-  const result = {
+function extractDownstreamTargets(crossProjectMentions: CrossProjectMention[]): string[] {
+  const targets = new Set<string>();
+  for (const mention of crossProjectMentions) {
+    targets.add(mention.mentionedService);
+  }
+  return Array.from(targets);
+}
+
+function classifyErrorPattern(
+  entries: NormalizedEntry[],
+  hardFailures: HardFailure[],
+  infoFailures: InfoFailure[],
+  crossProjectMentions: CrossProjectMention[],
+): ErrorClassification {
+  const result: ErrorClassification = {
     category: 'UNKNOWN',
     subcategory: null,
     confidence: 'low',
@@ -534,12 +544,12 @@ function classifyErrorPattern(entries, hardFailures, infoFailures, crossProjectM
   }
 
   const renderFailures = [...hardFailures, ...infoFailures].filter(f =>
-    f.category === 'RENDER' || f.subtype?.includes('PACKAGING') || f.subtype?.includes('RENDER')
+    f.category === 'RENDER' || f.subtype?.includes('PACKAGING') || f.subtype?.includes('RENDER'),
   );
   if (renderFailures.length > 0) {
     result.category = 'RENDER_FAILURE';
     result.confidence = 'medium';
-    result.message = renderFailures[0].message || renderFailures[0].error || 'Render failed';
+    result.message = (renderFailures[0] as any).message || (renderFailures[0] as any).error || 'Render failed';
     result.shouldQueryDownstream = true;
     result.downstreamTargets = extractDownstreamTargets(crossProjectMentions);
     result.action = 'Confirm whether render service was reached, query relevant downstream logs';
@@ -559,7 +569,7 @@ function classifyErrorPattern(entries, hardFailures, infoFailures, crossProjectM
   if (hardFailures.length > 0) {
     result.category = 'HARD_FAILURE';
     result.confidence = 'low';
-    result.message = hardFailures[0].error || hardFailures[0].code;
+    result.message = (hardFailures[0].error || hardFailures[0].code) ?? null;
     result.shouldQueryDownstream = true;
     result.downstreamTargets = extractDownstreamTargets(crossProjectMentions);
     result.action = 'Analyze error stack and context, confirm failure location';
@@ -569,7 +579,7 @@ function classifyErrorPattern(entries, hardFailures, infoFailures, crossProjectM
   if (infoFailures.length > 0) {
     result.category = 'BUSINESS_FAILURE';
     result.confidence = 'medium';
-    result.message = infoFailures[0].message || infoFailures[0].subtype;
+    result.message = (infoFailures[0].message || infoFailures[0].subtype) ?? null;
     result.shouldQueryDownstream = true;
     result.downstreamTargets = extractDownstreamTargets(crossProjectMentions);
     result.action = 'INFO level failure, need context to determine if this is the final failure point';
@@ -579,20 +589,12 @@ function classifyErrorPattern(entries, hardFailures, infoFailures, crossProjectM
   return result;
 }
 
-function extractDownstreamTargets(crossProjectMentions) {
-  const targets = new Set();
-  for (const mention of crossProjectMentions) {
-    targets.add(mention.mentionedService);
-  }
-  return Array.from(targets);
-}
-
-function extractSignals(hits, projectConfig) {
+export function extractSignals(hits: QueryHit[], projectConfig: ProjectConfig): SignalExtraction {
   const allEntries = hits.flatMap(hit =>
     (hit.body || []).map(entry => ({
       ...entry,
-      _sourceAlias: hit.source?.alias || hit.source?.name
-    }))
+      _sourceAlias: hit.source?.alias || hit.source?.name,
+    })),
   );
 
   const hardFailures = extractHardFailures(allEntries);
@@ -615,11 +617,10 @@ function extractSignals(hits, projectConfig) {
       totalEntries: allEntries.length,
       project: projectConfig.name,
       extractedAt: new Date().toISOString(),
-    }
+    },
   };
 }
 
-// Noise event filtering
 const NOISE_EVENT_PATTERNS = [
   'getUserInfo',
   'slow request',
@@ -641,7 +642,7 @@ const KEY_EVENT_PATTERNS = [
   'create',
 ];
 
-function filterNoiseEvents(entries) {
+export function filterNoiseEvents(entries: NormalizedEntry[]): NormalizedEntry[] {
   return entries.filter(entry => {
     const summary = entry.summary || {};
     const event = (summary.event || '').toLowerCase();
@@ -664,16 +665,14 @@ function filterNoiseEvents(entries) {
   });
 }
 
-module.exports = {
-  extractSignals,
+export {
+  HARD_FAILURE_PATTERNS,
+  INFO_FAILURE_PATTERNS,
   extractHardFailures,
   extractInfoFailures,
   extractStateTransitions,
   extractCrossProjectMentions,
   extractErrorStacks,
   extractSubTasks,
-  filterNoiseEvents,
   classifyErrorPattern,
-  HARD_FAILURE_PATTERNS,
-  INFO_FAILURE_PATTERNS,
 };

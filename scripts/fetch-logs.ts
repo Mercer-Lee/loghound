@@ -1,9 +1,13 @@
-#!/usr/bin/env node
-require('dotenv').config();
-const { execFile } = require('child_process');
-const { promisify } = require('util');
-const pLimit = require('p-limit').default || require('p-limit');
-const {
+#!/usr/bin/env tsx
+import 'dotenv/config';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import path from 'path';
+import pLimit from 'p-limit';
+
+const { GetLogsRequest } = require('@alicloud/sls20201230');
+
+import {
   buildClsClient,
   buildSlsClient,
   buildTlsClient,
@@ -12,15 +16,28 @@ const {
   readProjectsConfig,
   toSingleLine,
   tryParseJson,
-} = require('./lib');
-const { extractSignals, filterNoiseEvents } = require('./lib/signal-extractor');
-const { clusterLogs } = require('./lib/log-cluster');
-const { generateHints } = require('./lib/hint-generator');
+} from './lib';
+import { extractSignals, filterNoiseEvents } from './lib/signal-extractor';
+import { clusterLogs } from './lib/log-cluster';
+import { generateHints } from './lib/hint-generator';
+
+import type {
+  FetchLogsArgs,
+  LogSummary,
+  NormalizedEntry,
+  PreprocessResult,
+  ProjectConfig,
+  QueryHit,
+  QueryHint,
+  StageHints,
+  SourceConfig,
+  TimelineEntry,
+} from './lib/types';
 
 const execFileAsync = promisify(execFile);
 
-function parseArgs(argv) {
-  const out = {
+function parseArgs(argv: string[]): FetchLogsArgs {
+  const out: FetchLogsArgs = {
     project: '',
     env: 'prod',
     query: '',
@@ -64,9 +81,9 @@ function parseArgs(argv) {
   return out;
 }
 
-function normalizeSlsLog(entry, source) {
-  const parsedContent = tryParseJson(entry.content);
-  const extra = parsedContent && parsedContent.extra && typeof parsedContent.extra === 'object' ? parsedContent.extra : {};
+function normalizeSlsLog(entry: any, source: SourceConfig & { alias: string }): NormalizedEntry {
+  const parsedContent = tryParseJson(entry.content) as any;
+  const extra = parsedContent?.extra && typeof parsedContent.extra === 'object' ? parsedContent.extra : {};
 
   return {
     summary: {
@@ -93,9 +110,9 @@ function normalizeSlsLog(entry, source) {
   };
 }
 
-function normalizeClsResult(result, source) {
-  const parsed = tryParseJson(result.LogJson) || {};
-  const embedded = extractEmbeddedJson(parsed.__CONTENT__);
+function normalizeClsResult(result: any, source: SourceConfig & { alias: string }): NormalizedEntry {
+  const parsed = tryParseJson(result.LogJson) as any || {};
+  const embedded = extractEmbeddedJson(parsed.__CONTENT__) as any;
   const extra = embedded && embedded.extra && typeof embedded.extra === 'object' ? embedded.extra : {};
   const customExtra = extra.customExtra && typeof extra.customExtra === 'object' ? extra.customExtra : {};
   const tags = parsed.__TAG__ && typeof parsed.__TAG__ === 'object' ? parsed.__TAG__ : {};
@@ -127,12 +144,12 @@ function normalizeClsResult(result, source) {
   };
 }
 
-function normalizeTlsLog(entry, source) {
-  const contentMap = Array.isArray(entry.Contents)
-    ? Object.fromEntries(entry.Contents.map((item) => [item.Key, item.Value]))
+function normalizeTlsLog(entry: any, source: SourceConfig & { alias: string }): NormalizedEntry {
+  const contentMap: Record<string, string> = Array.isArray(entry.Contents)
+    ? Object.fromEntries(entry.Contents.map((item: any) => [item.Key, item.Value]))
     : entry.Contents || {};
-  const parsedMessage = tryParseJson(contentMap.content || contentMap.message || contentMap.msg || '');
-  const embedded = parsedMessage || extractEmbeddedJson(contentMap.content || contentMap.message || contentMap.msg || '');
+  const parsedMessage = tryParseJson(contentMap.content || contentMap.message || contentMap.msg || '') as any;
+  const embedded = parsedMessage || extractEmbeddedJson(contentMap.content || contentMap.message || contentMap.msg || '') as any;
   const extra = embedded && embedded.extra && typeof embedded.extra === 'object' ? embedded.extra : {};
   const customExtra = extra.customExtra && typeof extra.customExtra === 'object' ? extra.customExtra : {};
 
@@ -161,18 +178,34 @@ function normalizeTlsLog(entry, source) {
   };
 }
 
-async function querySlsSource(client, projectId, source, query, from, to, limit) {
-  const { GetLogsRequest } = require('@alicloud/sls20201230');
+async function querySlsSource(
+  client: ReturnType<typeof buildSlsClient>,
+  projectId: string,
+  source: SourceConfig & { alias: string },
+  query: string,
+  from: number,
+  to: number,
+  limit: number,
+): Promise<QueryHit> {
   const req = new GetLogsRequest({ from, to, query, line: limit, reverse: true });
   const res = await client.getLogs(projectId, source.name, req);
-  const body = Array.isArray(res.body) ? res.body.map((item) => normalizeSlsLog(item, source)) : [];
+  const body = Array.isArray(res.body) ? res.body.map((item: any) => normalizeSlsLog(item, source)) : [];
   return {
+    source,
+    query,
     count: body.length,
     body,
   };
 }
 
-async function queryClsSource(client, source, query, from, to, limit) {
+async function queryClsSource(
+  client: any,
+  source: SourceConfig & { alias: string },
+  query: string,
+  from: number,
+  to: number,
+  limit: number,
+): Promise<QueryHit> {
   const res = await client.SearchLog({
     From: from,
     To: to,
@@ -182,15 +215,24 @@ async function queryClsSource(client, source, query, from, to, limit) {
     Sort: 'desc',
     Limit: limit,
   });
-  const body = Array.isArray(res.Results) ? res.Results.map((item) => normalizeClsResult(item, source)) : [];
+  const body = Array.isArray(res.Results) ? res.Results.map((item: any) => normalizeClsResult(item, source)) : [];
   return {
+    source,
+    query,
     count: body.length,
-    requestId: res.RequestId,
     body,
+    requestId: res.RequestId,
   };
 }
 
-async function queryTlsSource(client, source, query, from, to, limit) {
+async function queryTlsSource(
+  client: any,
+  source: SourceConfig & { alias: string },
+  query: string,
+  from: number,
+  to: number,
+  limit: number,
+): Promise<QueryHit> {
   const res = await client.SearchLogs({
     TopicId: source.name,
     Query: query,
@@ -199,21 +241,23 @@ async function queryTlsSource(client, source, query, from, to, limit) {
     Limit: limit,
     Sort: 'desc',
   });
-  const body = Array.isArray(res.Logs) ? res.Logs.map((item) => normalizeTlsLog(item, source)) : [];
+  const body = Array.isArray(res.Logs) ? res.Logs.map((item: any) => normalizeTlsLog(item, source)) : [];
   return {
+    source,
+    query,
     count: body.length,
+    body,
     resultStatus: res.ResultStatus,
     errorCount: Array.isArray(res.Errors) ? res.Errors.length : 0,
-    body,
   };
 }
 
-function extractIdentifiers(hits) {
-  const identifiers = {};
+function extractIdentifiers(hits: QueryHit[]): Record<string, string> {
+  const identifiers: Record<string, string> = {};
   for (const hit of hits) {
     for (const entry of hit.body) {
       const summary = entry.summary;
-      for (const key of ['traceId', 'taskId', 'requestId', 'uid']) {
+      for (const key of ['traceId', 'taskId', 'requestId', 'uid'] as const) {
         if (!identifiers[key] && summary[key]) {
           identifiers[key] = summary[key];
         }
@@ -223,7 +267,7 @@ function extractIdentifiers(hits) {
   return identifiers;
 }
 
-function toTimestamp(value) {
+function toTimestamp(value: unknown): number {
   if (value === undefined || value === null || value === '') {
     return 0;
   }
@@ -234,11 +278,11 @@ function toTimestamp(value) {
   if (Number.isFinite(numeric) && numeric > 0) {
     return numeric > 1000000000000 ? numeric : numeric * 1000;
   }
-  const parsed = Date.parse(value);
+  const parsed = Date.parse(String(value));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function buildTimeline(hits) {
+function buildTimeline(hits: QueryHit[]): TimelineEntry[] {
   return hits
     .flatMap((hit) => hit.body.map((entry) => ({
       timestamp: toTimestamp(entry.summary.time),
@@ -258,7 +302,7 @@ function buildTimeline(hits) {
     .sort((a, b) => b.timestamp - a.timestamp);
 }
 
-function buildStageHints(timeline) {
+function buildStageHints(timeline: TimelineEntry[]): StageHints {
   const first = timeline[timeline.length - 1] || null;
   const last = timeline[0] || null;
   const lastErrored = timeline.find((item) => item.error) || null;
@@ -289,14 +333,50 @@ function buildStageHints(timeline) {
   };
 }
 
-function buildPreprocessResult(projectConfig, args, hits) {
+function buildQueryHints(
+  extractedIds: Record<string, string>,
+  args: FetchLogsArgs,
+  signalExtraction: any,
+): QueryHint[] {
+  const hints: QueryHint[] = [];
+  if (extractedIds.traceId) {
+    hints.push({
+      type: 'useTraceId',
+      message: `traceId extracted: ${extractedIds.traceId}, prefer this for subsequent queries within the same project`,
+      suggestedQuery: `${extractedIds.traceId}`,
+    });
+  }
+  if (args._fallbackInfo) {
+    hints.push({
+      type: 'autoFallback',
+      message: `Original query "${args._fallbackInfo.originalQuery}" returned 0 hits, auto-fell back to "${args._fallbackInfo.fallbackQuery}"`,
+    });
+  }
+
+  if (signalExtraction && signalExtraction.subTasks && signalExtraction.subTasks.failed.length > 0) {
+    const failedIds = signalExtraction.subTasks.failed.slice(0, 3).map((t: any) => t.id).join(', ');
+    hints.push({
+      type: 'failedPathPriority',
+      message: `Found ${signalExtraction.subTasks.failed.length} failed sub-tasks, prioritize: ${failedIds}`,
+      failedTaskIds: signalExtraction.subTasks.failed.map((t: any) => t.id),
+    });
+  }
+
+  return hints;
+}
+
+function buildPreprocessResult(
+  projectConfig: ProjectConfig & { sources: (SourceConfig & { alias: string })[] },
+  args: FetchLogsArgs,
+  hits: QueryHit[],
+): PreprocessResult {
   const matchedHits = hits.filter((item) => item.count > 0);
   const failedSources = hits
     .filter((item) => item.error)
     .map((item) => ({
       source: item.source.alias || item.source.name,
       layer: item.source.layer || '',
-      error: item.error,
+      error: item.error!,
     }));
   const timeline = buildTimeline(matchedHits);
 
@@ -336,7 +416,7 @@ function buildPreprocessResult(projectConfig, args, hits) {
   };
 }
 
-function expandProjectConfigs(projectName, env) {
+function expandProjectConfigs(projectName: string, env: string): ProjectConfig[] {
   const projects = readProjectsConfig();
   const project = projects[projectName];
   if (!project) {
@@ -345,13 +425,15 @@ function expandProjectConfigs(projectName, env) {
 
   const multiEnvs = project.multiEnvs;
   if (multiEnvs && Array.isArray(multiEnvs) && multiEnvs.length > 0) {
-    return multiEnvs.map((envName) => getProjectConfig(projectName, envName));
+    return multiEnvs.map((envName: string) => getProjectConfig(projectName, envName));
   }
 
   return [getProjectConfig(projectName, env)];
 }
 
-function tagProjectConfigSources(projectConfig) {
+function tagProjectConfigSources(
+  projectConfig: ProjectConfig,
+): ProjectConfig & { sources: (SourceConfig & { alias: string })[] } {
   return {
     ...projectConfig,
     sources: (projectConfig.sources || []).map((source) => ({
@@ -361,9 +443,13 @@ function tagProjectConfigSources(projectConfig) {
   };
 }
 
-async function queryWebhookProject(projectConfig, args) {
-  const scriptPath = require('path').join(__dirname, 'fetch-webhook.js');
-  const { stdout } = await execFileAsync(process.execPath, [
+async function queryWebhookProject(
+  projectConfig: any,
+  args: FetchLogsArgs,
+): Promise<PreprocessResult> {
+  const tsxBin = path.resolve(__dirname, '..', 'node_modules', '.bin', 'tsx');
+  const scriptPath = path.join(__dirname, 'fetch-webhook.ts');
+  const { stdout } = await execFileAsync(tsxBin, [
     scriptPath,
     '--taskId',
     args.query,
@@ -373,7 +459,7 @@ async function queryWebhookProject(projectConfig, args) {
     maxBuffer: 10 * 1024 * 1024,
   });
 
-  const parsed = JSON.parse(stdout);
+  const parsed = JSON.parse(stdout) as PreprocessResult;
   if (parsed && parsed.query) {
     parsed.query.project = projectConfig.name;
     parsed.query.env = projectConfig.env;
@@ -384,7 +470,7 @@ async function queryWebhookProject(projectConfig, args) {
   return parsed;
 }
 
-function printSummary(summary, index) {
+function printSummary(summary: LogSummary, index: number): void {
   const lead = [summary.time, summary.level, summary.event, summary.content]
     .filter(Boolean)
     .join(' | ');
@@ -411,7 +497,7 @@ function printSummary(summary, index) {
   }
 }
 
-function printHumanOutput(result) {
+function printHumanOutput(result: PreprocessResult): void {
   console.log(`${result.query.project}/${result.query.env} window=${result.query.hours}h query=${result.query.query}`);
 
   if (!result.hits.length) {
@@ -570,12 +656,12 @@ function printHumanOutput(result) {
   }
 }
 
-function hasLevelFilter(query) {
+function hasLevelFilter(query: string): boolean {
   const upper = query.toUpperCase();
   return /\bERROR\b/.test(upper) || /\bWARN\b/.test(upper);
 }
 
-function stripLevelFilter(query) {
+function stripLevelFilter(query: string): string {
   return query
     .replace(/\s*AND\s*\(\s*ERROR\s+OR\s+WARN\s*\)/gi, '')
     .replace(/\s*AND\s*ERROR\b/gi, '')
@@ -585,58 +671,35 @@ function stripLevelFilter(query) {
     .trim();
 }
 
-function totalHitCount(hits) {
+function totalHitCount(hits: QueryHit[]): number {
   return hits.reduce((sum, h) => sum + (h.count || 0), 0);
 }
 
-function buildQueryHints(extractedIds, args, signalExtraction) {
-  const hints = [];
-  if (extractedIds.traceId) {
-    hints.push({
-      type: 'useTraceId',
-      message: `traceId extracted: ${extractedIds.traceId}, prefer this for subsequent queries within the same project`,
-      suggestedQuery: `${extractedIds.traceId}`,
-    });
-  }
-  if (args._fallbackInfo) {
-    hints.push({
-      type: 'autoFallback',
-      message: `Original query "${args._fallbackInfo.originalQuery}" returned 0 hits, auto-fell back to "${args._fallbackInfo.fallbackQuery}"`,
-    });
-  }
+type LimitFn = <T>(fn: () => Promise<T>) => Promise<T>;
 
-  if (signalExtraction && signalExtraction.subTasks && signalExtraction.subTasks.failed.length > 0) {
-    const failedIds = signalExtraction.subTasks.failed.slice(0, 3).map(t => t.id).join(', ');
-    hints.push({
-      type: 'failedPathPriority',
-      message: `Found ${signalExtraction.subTasks.failed.length} failed sub-tasks, prioritize: ${failedIds}`,
-      failedTaskIds: signalExtraction.subTasks.failed.map(t => t.id),
-    });
-  }
-
-  return hints;
-}
-
-async function queryAllSources(projectConfigs, primaryConfig, args, pLimitFn) {
-  const limit = pLimitFn;
-  const hits = [];
+async function queryAllSources(
+  projectConfigs: ReturnType<typeof tagProjectConfigSources>[],
+  primaryConfig: any,
+  args: FetchLogsArgs,
+  limit: LimitFn,
+): Promise<QueryHit[]> {
+  const hits: QueryHit[] = [];
 
   if (primaryConfig.queryBackend === 'sls') {
     const to = Math.floor(Date.now() / 1000);
     const from = to - Math.max(1, args.hours) * 3600;
-    const tasks = [];
+    const tasks: Promise<QueryHit>[] = [];
     for (const projectConfig of projectConfigs) {
       const client = buildSlsClient(projectConfig.region);
       for (const source of projectConfig.sources) {
         tasks.push(
           limit(async () => {
             try {
-              const result = await querySlsSource(client, projectConfig.projectId, source, args.query, from, to, args.lines);
-              return { source, query: args.query, ...result };
-            } catch (error) {
+              return await querySlsSource(client, projectConfig.projectId, source, args.query, from, to, args.lines);
+            } catch (error: any) {
               return { source, query: args.query, error: error.message, count: 0, body: [] };
             }
-          })
+          }),
         );
       }
     }
@@ -645,19 +708,18 @@ async function queryAllSources(projectConfigs, primaryConfig, args, pLimitFn) {
   } else if (primaryConfig.queryBackend === 'cls') {
     const to = Date.now();
     const from = to - Math.max(1, args.hours) * 3600 * 1000;
-    const tasks = [];
+    const tasks: Promise<QueryHit>[] = [];
     for (const projectConfig of projectConfigs) {
       const client = buildClsClient(projectConfig.region);
       for (const source of projectConfig.sources) {
         tasks.push(
           limit(async () => {
             try {
-              const result = await queryClsSource(client, source, args.query, from, to, args.lines);
-              return { source, query: args.query, ...result };
-            } catch (error) {
+              return await queryClsSource(client, source, args.query, from, to, args.lines);
+            } catch (error: any) {
               return { source, query: args.query, error: error.message, count: 0, body: [] };
             }
-          })
+          }),
         );
       }
     }
@@ -666,19 +728,18 @@ async function queryAllSources(projectConfigs, primaryConfig, args, pLimitFn) {
   } else if (primaryConfig.queryBackend === 'tls') {
     const to = Math.floor(Date.now() / 1000);
     const from = to - Math.max(1, args.hours) * 3600;
-    const tasks = [];
+    const tasks: Promise<QueryHit>[] = [];
     for (const projectConfig of projectConfigs) {
       const client = buildTlsClient(projectConfig.region);
       for (const source of projectConfig.sources) {
         tasks.push(
           limit(async () => {
             try {
-              const result = await queryTlsSource(client, source, args.query, from, to, args.lines);
-              return { source, query: args.query, ...result };
-            } catch (error) {
+              return await queryTlsSource(client, source, args.query, from, to, args.lines);
+            } catch (error: any) {
               return { source, query: args.query, error: error.message, count: 0, body: [] };
             }
-          })
+          }),
         );
       }
     }
@@ -691,7 +752,7 @@ async function queryAllSources(projectConfigs, primaryConfig, args, pLimitFn) {
   return hits;
 }
 
-async function main() {
+async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const projectConfigs = expandProjectConfigs(args.project, args.env).map(tagProjectConfigSources);
   const primaryProjectConfig = {
@@ -713,7 +774,7 @@ async function main() {
     return;
   }
 
-  const limit = pLimit(5);
+  const limit = pLimit(5) as unknown as LimitFn;
   let hits = await queryAllSources(projectConfigs, primaryProjectConfig, args, limit);
 
   if (args.autoFallback && totalHitCount(hits) === 0 && hasLevelFilter(args.query)) {
@@ -744,7 +805,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+main().catch((error: any) => {
   console.error(error.stack || error.message);
   process.exit(1);
 });
