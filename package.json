@@ -1,14 +1,14 @@
 {
-  "name": "incident-investigator-generic",
+  "name": "loghound",
   "version": "1.0.0",
-  "description": "Generic production incident investigation tool — multi-cloud log aggregation, webhook task query, user ID lookup, and AI-driven root cause analysis.",
+  "description": "Production incident investigation tool — multi-cloud log aggregation, signal extraction, and AI-driven root cause analysis.",
   "main": "scripts/fetch-logs.js",
   "scripts": {
     "fetch-logs": "node scripts/fetch-logs.js",
     "fetch-webhook": "node scripts/fetch-webhook.js",
     "fetch-uid": "node scripts/fetch-uid.js"
   },
-  "keywords": ["incident", "log", "investigation", "sls", "cls", "tls"],
+  "keywords": ["incident", "log", "investigation", "sls", "cls", "tls", "loghound"],
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {

@@ -1,15 +1,15 @@
-# incident-investigator-generic
+# loghound
 
 [中文文档](README.zh-CN.md)
 
-Generic production incident investigation skill for Claude Code.
+Production incident investigation skill for Claude Code — multi-cloud log aggregation, signal extraction, and AI-driven root cause analysis.
 
-Queries multi-cloud logs (Alibaba Cloud SLS / Tencent Cloud CLS / Volcengine TLS), webhook-based workflow engines, and user identity stores, then feeds normalized results into AI-driven root cause analysis.
+Queries Alibaba Cloud SLS, Tencent Cloud CLS, Volcengine TLS, webhook-based workflow engines, and user identity stores, then feeds normalized results into AI-driven root cause analysis.
 
 ## Setup
 
 ```bash
-cd skills/incident-investigator-generic
+cd skills/loghound
 npm install
 ```
 

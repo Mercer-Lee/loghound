@@ -1,15 +1,15 @@
-# incident-investigator-generic
+# loghound
 
 [English](README.md)
 
-Claude Code 通用生产事故排查技能。
+Claude Code 生产事故排查技能——多云日志聚合、信号提取与 AI 驱动的根因分析。
 
-支持多云日志查询（阿里云 SLS / 腾讯云 CLS / 火山引擎 TLS）、Webhook 工作流引擎、用户身份查询，将标准化结果交给 AI 驱动的根因分析。
+支持阿里云 SLS、腾讯云 CLS、火山引擎 TLS、Webhook 工作流引擎和用户身份查询，将标准化结果交给 AI 驱动的根因分析。
 
 ## 安装
 
 ```bash
-cd skills/incident-investigator-generic
+cd skills/loghound
 npm install
 ```
 

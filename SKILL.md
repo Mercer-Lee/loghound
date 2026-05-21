@@ -1,6 +1,6 @@
 ---
-name: incident-investigator-generic
-description: Generic production incident investigation skill. When customer support or internal colleagues report a production issue, automatically query logs, trace identifiers across services, identify root cause, and generate customer-facing response. Requires taskId, traceId, requestId, uid, userId, or workflow taskId as a starting point. Not for broad queries without concrete identifiers or local debugging.
+name: loghound
+description: Production incident investigation skill. When customer support or internal colleagues report a production issue, automatically query logs, trace identifiers across services, identify root cause, and generate customer-facing response. Requires taskId, traceId, requestId, uid, userId, or workflow taskId as a starting point. Not for broad queries without concrete identifiers or local debugging.
 ---
 
 # Incident Investigator (Generic)
@@ -129,7 +129,7 @@ Use `scripts/fetch-logs.js`.
 ## Examples
 
 ```bash
-cd skills/incident-investigator-generic
+cd skills/loghound
 npm run fetch-logs -- --project my-service --query 'someTaskId AND ERROR' --env prod --json
 npm run fetch-webhook -- --taskId xxx --json
 npm run fetch-uid -- --userNo 12345 --json
