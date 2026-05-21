@@ -1,0 +1,92 @@
+{
+  "_comment": "Copy this file to projects.json and fill in your own values.",
+
+  "example-project": {
+    "description": "A short description of this project's purpose",
+    "envs": {
+      "prod": {
+        "region": "cn-beijing",
+        "vendorOverride": null,
+        "backendOverride": null,
+        "projectId": "your-log-project-id",
+        "sources": [
+          {
+            "name": "api-prod",
+            "alias": "api",
+            "layer": "api",
+            "purpose": "request ingress and routing"
+          },
+          {
+            "name": "worker-prod",
+            "alias": "worker",
+            "layer": "queue",
+            "purpose": "async task processing"
+          },
+          {
+            "name": "db-prod",
+            "alias": "db",
+            "layer": "data",
+            "purpose": "database interactions"
+          }
+        ]
+      },
+      "test": {
+        "region": "cn-shenzhen",
+        "projectId": "your-test-log-project-id",
+        "sources": [
+          {
+            "name": "api-test",
+            "layer": "api",
+            "purpose": "test environment API logs"
+          }
+        ]
+      }
+    },
+    "vendor": "sls",
+    "queryBackend": "sls",
+    "downstream": ["another-project"],
+    "keywords": ["example", "keyword"],
+    "multiEnvs": null,
+    "taskPatterns": []
+  },
+
+  "example-webhook-project": {
+    "description": "A workflow engine queried via webhook",
+    "envs": {
+      "prod": {
+        "region": "webhook",
+        "projectId": "webhook-query",
+        "sources": [
+          {
+            "name": "workflow-engine",
+            "layer": "workflow",
+            "purpose": "workflow execution records queried through webhook"
+          }
+        ]
+      }
+    },
+    "vendor": "webhook",
+    "queryBackend": "webhook",
+    "downstream": ["example-project"],
+    "keywords": ["workflow", "engine"],
+    "taskPatterns": [
+      { "type": "workflow", "regex": "workflow_\\d+_[a-f0-9]+_[a-f0-9]+" }
+    ]
+  },
+
+  "_schema_docs": {
+    "vendor": "sls | cls | tls | webhook",
+    "queryBackend": "sls | cls | tls | webhook — usually same as vendor, can be overridden per-env",
+    "downstream": "list of project names this project calls",
+    "keywords": "words that identify this project in cross-project log mentions",
+    "multiEnvs": "array of env names to expand into when querying (e.g. ['prod', 'prod-secondary-region'])",
+    "taskPatterns": "array of {type, regex} for taskId format recognition",
+    "envs.<env>.region": "cloud region string — used to build SDK endpoints",
+    "envs.<env>.vendorOverride": "override project-level vendor for this env",
+    "envs.<env>.backendOverride": "override project-level queryBackend for this env",
+    "sources[].name": "log store name / topic ID",
+    "sources[].alias": "human-readable short name (defaults to name)",
+    "sources[].layer": "architectural layer (api, queue, workflow, data, etc.)",
+    "sources[].purpose": "one-line description for AI context"
+  }
+}

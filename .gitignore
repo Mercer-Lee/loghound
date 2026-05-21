@@ -1,0 +1,28 @@
+# Credentials — NEVER commit
+.env
+.env.local
+.env.*.local
+
+# User-specific project config (contains internal infrastructure details)
+config/projects.json
+
+# Dependencies
+node_modules/
+
+# Claude Code local settings
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Temp files
+*.log
+tmp/

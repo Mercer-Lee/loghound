@@ -1,0 +1,24 @@
+{
+  "name": "incident-investigator-generic",
+  "version": "1.0.0",
+  "description": "Generic production incident investigation tool — multi-cloud log aggregation, webhook task query, user ID lookup, and AI-driven root cause analysis.",
+  "main": "scripts/fetch-logs.js",
+  "scripts": {
+    "fetch-logs": "node scripts/fetch-logs.js",
+    "fetch-webhook": "node scripts/fetch-webhook.js",
+    "fetch-uid": "node scripts/fetch-uid.js"
+  },
+  "keywords": ["incident", "log", "investigation", "sls", "cls", "tls"],
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@alicloud/credentials": "^2.4.4",
+    "@alicloud/openapi-client": "^0.4.15",
+    "@alicloud/sls20201230": "^5.9.0",
+    "@volcengine/openapi": "^1.36.0",
+    "dotenv": "^17.4.2",
+    "mongodb": "^7.1.1",
+    "p-limit": "^7.3.0",
+    "tencentcloud-sdk-nodejs": "^4.1.198"
+  }
+}
