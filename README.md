@@ -1,5 +1,7 @@
 # incident-investigator-generic
 
+[中文文档](README.zh-CN.md)
+
 Generic production incident investigation skill for Claude Code.
 
 Queries multi-cloud logs (Alibaba Cloud SLS / Tencent Cloud CLS / Volcengine TLS), webhook-based workflow engines, and user identity stores, then feeds normalized results into AI-driven root cause analysis.
@@ -50,6 +52,33 @@ npm run fetch-webhook -- --taskId xxx --json
 npm run fetch-uid -- --userNo 12345 --json
 ```
 
+## Architecture
+
+```
+User report (ID + symptoms)
+  │
+  ▼
+┌─────────────────────────────────────────────┐
+│  Script Layer                                │
+│  fetch-logs / fetch-webhook / fetch-uid      │
+│  ├─ Query log sources in parallel            │
+│  ├─ Normalize to unified schema              │
+│  ├─ Extract signals (hard failures, errors)  │
+│  ├─ Cluster & deduplicate logs               │
+│  └─ Generate analysis hints                  │
+└─────────────────────────────────────────────┘
+  │ JSON output
+  ▼
+┌─────────────────────────────────────────────┐
+│  Analysis Layer (Claude / AI)                │
+│  SKILL.md workflow                           │
+│  ├─ Classify problem type                    │
+│  ├─ Trace identifiers across services        │
+│  ├─ Iterate downstream until root cause      │
+│  └─ Generate customer-facing response        │
+└─────────────────────────────────────────────┘
+```
+
 ## Environment variables
 
 | Variable | Purpose | Required by |
@@ -71,3 +100,7 @@ npm run fetch-uid -- --userNo 12345 --json
 ## Project configuration
 
 `config/projects.json` defines each project's log sources, cloud vendor, environments, downstream services, and identifier patterns. See `config/projects.example.json` for the full schema.
+
+## License
+
+[MIT](LICENSE)

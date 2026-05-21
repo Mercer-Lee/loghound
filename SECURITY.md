@@ -1,5 +1,7 @@
 # Security Policy
 
+[中文版本](SECURITY.zh-CN.md)
+
 ## Credential Management
 
 This tool connects to cloud logging services (Alibaba Cloud SLS, Tencent Cloud CLS, Volcengine TLS) and optionally MongoDB. **All credentials must be stored in `.env`**, which is excluded from version control via `.gitignore`.
