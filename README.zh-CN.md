@@ -2,14 +2,13 @@
 
 [English](README.md)
 
-Claude Code 生产事故排查技能——多云日志聚合、信号提取与 AI 驱动的根因分析。
+生产事故排查工具——多云日志聚合、信号提取与 AI 驱动的根因分析。
 
 支持阿里云 SLS、腾讯云 CLS、火山引擎 TLS、Webhook 工作流引擎和用户身份查询，将标准化结果交给 AI 驱动的根因分析。
 
 ## 安装
 
 ```bash
-cd skills/loghound
 npm install
 ```
 
@@ -17,7 +16,7 @@ npm install
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入云服务凭据、Webhook 地址和 MongoDB 连接信息
+# 编辑 .env，填入云服务凭据、Webhook 地址和数据库连接信息
 ```
 
 ### 2. 定义项目
@@ -48,8 +47,11 @@ npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ER
 # 查询 Webhook 工作流引擎
 npm run fetch-webhook -- --taskId xxx --json
 
-# 查询用户 ID
+# 查询用户 ID（生产环境）
 npm run fetch-uid -- --userNo 12345 --json
+
+# 查询用户 ID（测试环境）
+npm run fetch-uid -- --userNo 12345 --env test --json
 ```
 
 ## 架构
@@ -70,7 +72,7 @@ npm run fetch-uid -- --userNo 12345 --json
   │ JSON 输出
   ▼
 ┌─────────────────────────────────────────────┐
-│  分析层（Claude / AI）                        │
+│  分析层（AI）                                 │
 │  SKILL.md 工作流                              │
 │  ├─ 分类问题类型                              │
 │  ├─ 跨服务追踪标识符                          │
@@ -81,6 +83,8 @@ npm run fetch-uid -- --userNo 12345 --json
 
 ## 环境变量
 
+### 云日志服务
+
 | 变量 | 用途 | 使用者 |
 |------|------|--------|
 | `SLS_ACCESS_KEY_ID` / `SLS_ACCESS_KEY_SECRET` | 阿里云 SLS | `fetch-logs`（SLS） |
@@ -88,14 +92,41 @@ npm run fetch-uid -- --userNo 12345 --json
 | `TLS_ACCESS_KEY_ID` / `TLS_ACCESS_KEY_SECRET` | 火山引擎 TLS | `fetch-logs`（TLS） |
 | `TLS_SESSION_TOKEN` | 火山引擎 TLS 临时 Token | `fetch-logs`（可选） |
 | `TLS_HOST` | 火山引擎 TLS 端点 | `fetch-logs`（TLS） |
+
+### Webhook
+
+| 变量 | 用途 | 使用者 |
+|------|------|--------|
 | `WEBHOOK_API_URL` | 工作流查询 API 地址 | `fetch-webhook` |
 | `WEBHOOK_ERROR_API_URL` | 工作流错误详情 API 地址 | `fetch-webhook`（可选） |
 | `WEBHOOK_TOKEN` | Webhook API 鉴权 Token | `fetch-webhook` |
-| `MONGO_URI` | MongoDB 连接串 | `fetch-uid` |
-| `MONGO_DB` | 数据库名 | `fetch-uid` |
-| `MONGO_COLLECTION` | 集合名 | `fetch-uid` |
-| `MONGO_LOOKUP_FIELD` | 匹配字段 | `fetch-uid` |
-| `MONGO_RETURN_FIELDS` | 返回字段（逗号分隔） | `fetch-uid` |
+
+### MongoDB（用户 ID 查询）
+
+`fetch-uid` 支持 `--env prod|test` 切换不同环境的数据库配置。
+
+| 变量 | 用途 |
+|------|------|
+| `MONGO_URI` | 生产环境 MongoDB 连接串 |
+| `MONGO_DB` | 数据库名 |
+| `MONGO_COLLECTION` | 集合名 |
+| `MONGO_LOOKUP_FIELD` | 匹配字段（默认 `userNo`，查询 `_id` 时自动转为 ObjectId） |
+| `MONGO_RETURN_FIELDS` | 返回字段（逗号分隔） |
+| `TEST_MONGO_URI` | 测试环境 MongoDB 连接串 |
+| `TEST_MONGO_DB` | 测试环境数据库名 |
+| `TEST_MONGO_COLLECTION` | 测试环境集合名 |
+| `TEST_MONGO_LOOKUP_FIELD` | 测试环境匹配字段 |
+| `TEST_MONGO_RETURN_FIELDS` | 测试环境返回字段 |
+
+### MySQL（预留）
+
+| 变量 | 用途 |
+|------|------|
+| `MYSQL_HOST` / `TEST_MYSQL_HOST` | MySQL 地址 |
+| `MYSQL_PORT` / `TEST_MYSQL_PORT` | MySQL 端口 |
+| `MYSQL_USER` / `TEST_MYSQL_USER` | MySQL 用户名 |
+| `MYSQL_PASSWORD` / `TEST_MYSQL_PASSWORD` | MySQL 密码 |
+| `MYSQL_DATABASE` / `TEST_MYSQL_DATABASE` | MySQL 数据库名 |
 
 ## 项目配置
 

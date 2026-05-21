@@ -2,14 +2,13 @@
 
 [中文文档](README.zh-CN.md)
 
-Production incident investigation skill for Claude Code — multi-cloud log aggregation, signal extraction, and AI-driven root cause analysis.
+Production incident investigation tool — multi-cloud log aggregation, signal extraction, and AI-driven root cause analysis.
 
 Queries Alibaba Cloud SLS, Tencent Cloud CLS, Volcengine TLS, webhook-based workflow engines, and user identity stores, then feeds normalized results into AI-driven root cause analysis.
 
 ## Setup
 
 ```bash
-cd skills/loghound
 npm install
 ```
 
@@ -17,7 +16,7 @@ npm install
 
 ```bash
 cp .env.example .env
-# Edit .env with your cloud credentials, webhook URLs, and MongoDB connection.
+# Edit .env with your cloud credentials, webhook URLs, and database connections.
 ```
 
 ### 2. Define your projects
@@ -48,8 +47,11 @@ npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ER
 # Query webhook-based workflow engine
 npm run fetch-webhook -- --taskId xxx --json
 
-# Look up user ID
+# Look up user ID (production)
 npm run fetch-uid -- --userNo 12345 --json
+
+# Look up user ID (test environment)
+npm run fetch-uid -- --userNo 12345 --env test --json
 ```
 
 ## Architecture
@@ -70,7 +72,7 @@ User report (ID + symptoms)
   │ JSON output
   ▼
 ┌─────────────────────────────────────────────┐
-│  Analysis Layer (Claude / AI)                │
+│  Analysis Layer (AI)                         │
 │  SKILL.md workflow                           │
 │  ├─ Classify problem type                    │
 │  ├─ Trace identifiers across services        │
@@ -81,6 +83,8 @@ User report (ID + symptoms)
 
 ## Environment variables
 
+### Cloud log services
+
 | Variable | Purpose | Required by |
 |----------|---------|-------------|
 | `SLS_ACCESS_KEY_ID` / `SLS_ACCESS_KEY_SECRET` | Alibaba Cloud SLS | `fetch-logs` (SLS vendor) |
@@ -88,14 +92,41 @@ User report (ID + symptoms)
 | `TLS_ACCESS_KEY_ID` / `TLS_ACCESS_KEY_SECRET` | Volcengine TLS | `fetch-logs` (TLS vendor) |
 | `TLS_SESSION_TOKEN` | Volcengine TLS temp token | `fetch-logs` (optional) |
 | `TLS_HOST` | Volcengine TLS endpoint | `fetch-logs` (TLS vendor) |
+
+### Webhook
+
+| Variable | Purpose | Required by |
+|----------|---------|-------------|
 | `WEBHOOK_API_URL` | Workflow query API endpoint | `fetch-webhook` |
 | `WEBHOOK_ERROR_API_URL` | Workflow error detail endpoint | `fetch-webhook` (optional) |
 | `WEBHOOK_TOKEN` | Auth token for webhook APIs | `fetch-webhook` |
-| `MONGO_URI` | MongoDB connection string | `fetch-uid` |
-| `MONGO_DB` | Database name | `fetch-uid` |
-| `MONGO_COLLECTION` | Collection name | `fetch-uid` |
-| `MONGO_LOOKUP_FIELD` | Field to match against | `fetch-uid` |
-| `MONGO_RETURN_FIELDS` | Fields to return (comma-separated) | `fetch-uid` |
+
+### MongoDB (User ID lookup)
+
+`fetch-uid` supports `--env prod|test` to select different database configs.
+
+| Variable | Purpose |
+|----------|---------|
+| `MONGO_URI` | Production MongoDB connection string |
+| `MONGO_DB` | Database name |
+| `MONGO_COLLECTION` | Collection name |
+| `MONGO_LOOKUP_FIELD` | Field to match against (default: `userNo`, use `_id` for ObjectId lookup) |
+| `MONGO_RETURN_FIELDS` | Fields to return (comma-separated) |
+| `TEST_MONGO_URI` | Test environment MongoDB connection string |
+| `TEST_MONGO_DB` | Test environment database name |
+| `TEST_MONGO_COLLECTION` | Test environment collection name |
+| `TEST_MONGO_LOOKUP_FIELD` | Test environment lookup field |
+| `TEST_MONGO_RETURN_FIELDS` | Test environment return fields |
+
+### MySQL (reserved)
+
+| Variable | Purpose |
+|----------|---------|
+| `MYSQL_HOST` / `TEST_MYSQL_HOST` | MySQL host |
+| `MYSQL_PORT` / `TEST_MYSQL_PORT` | MySQL port |
+| `MYSQL_USER` / `TEST_MYSQL_USER` | MySQL user |
+| `MYSQL_PASSWORD` / `TEST_MYSQL_PASSWORD` | MySQL password |
+| `MYSQL_DATABASE` / `TEST_MYSQL_DATABASE` | MySQL database name |
 
 ## Project configuration
 
