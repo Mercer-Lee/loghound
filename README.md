@@ -101,7 +101,7 @@ User report (ID + symptoms)
 | `WEBHOOK_ERROR_API_URL` | Workflow error detail endpoint | `fetch-webhook` (optional) |
 | `WEBHOOK_TOKEN` | Auth token for webhook APIs | `fetch-webhook` |
 
-### MongoDB (User ID lookup)
+### MongoDB
 
 `fetch-uid` supports `--env prod|test` to select different database configs.
 

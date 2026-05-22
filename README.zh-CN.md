@@ -101,7 +101,7 @@ npm run fetch-uid -- --userNo 12345 --env test --json
 | `WEBHOOK_ERROR_API_URL` | 工作流错误详情 API 地址 | `fetch-webhook`（可选） |
 | `WEBHOOK_TOKEN` | Webhook API 鉴权 Token | `fetch-webhook` |
 
-### MongoDB（用户 ID 查询）
+### MongoDB
 
 `fetch-uid` 支持 `--env prod|test` 切换不同环境的数据库配置。
 
