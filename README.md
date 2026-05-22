@@ -4,7 +4,7 @@
 
 Production incident investigation tool — multi-cloud log aggregation, signal extraction, and AI-driven root cause analysis.
 
-Queries Alibaba Cloud SLS, Tencent Cloud CLS, webhook-based workflow engines, and databases (MongoDB, SQL), then feeds normalized results into AI-driven root cause analysis.
+Queries Alibaba Cloud SLS, Tencent Cloud CLS, Volcengine TLS, webhook-based workflow engines, and databases (MongoDB, SQL), then feeds normalized results into AI-driven root cause analysis.
 
 ## Setup
 
@@ -27,7 +27,7 @@ cp config/projects.example.json config/projects.json
 ```
 
 Key fields per project:
-- `vendor` / `queryBackend`: Which cloud log service to use (`sls`, `cls`, `webhook`)
+- `vendor` / `queryBackend`: Which cloud log service to use (`sls`, `cls`, `tls`, `webhook`)
 - `envs.<env>.sources`: Log stores / topics to query, with architectural layer and purpose
 - `downstream`: Which other projects this one calls (used for automated chain traversal)
 - `keywords`: Words that identify this project in cross-project log mentions
@@ -99,6 +99,9 @@ User report (ID + symptoms)
 |----------|---------|-------------|
 | `SLS_ACCESS_KEY_ID` / `SLS_ACCESS_KEY_SECRET` | Alibaba Cloud SLS | `fetch-logs` (SLS vendor) |
 | `CLS_SECRET_ID` / `CLS_SECRET_KEY` | Tencent Cloud CLS | `fetch-logs` (CLS vendor) |
+| `TLS_ACCESS_KEY_ID` / `TLS_ACCESS_KEY_SECRET` | Volcengine TLS | `fetch-logs` (TLS vendor) |
+| `TLS_SESSION_TOKEN` | Volcengine TLS temp token | `fetch-logs` (optional) |
+| `TLS_HOST` | Volcengine TLS endpoint | `fetch-logs` (TLS vendor) |
 
 ### Webhook
 

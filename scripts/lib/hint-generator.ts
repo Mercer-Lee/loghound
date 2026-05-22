@@ -1,4 +1,10 @@
-import type { AnalysisHints, ErrorCluster, HardFailure, ProjectConfig, SignalExtraction } from './types';
+import type {
+  AnalysisHints,
+  ErrorCluster,
+  HardFailure,
+  ProjectConfig,
+  SignalExtraction,
+} from './types';
 import { readProjectsConfig } from './index';
 
 function loadProjectDownstream(): Record<string, string[]> {
@@ -119,14 +125,12 @@ function analyzeTimeoutFailure(
   hints.confidence = 'medium';
   hints.reasoning.push(`Timeout error: ${failure.error}`);
 
-  const downstreamMention = signals.crossProjectMentions.find((m) =>
+  const downstreamMention = signals.crossProjectMentions.find(m =>
     projectDownstream[projectConfig.name]?.includes(m.mentionedService),
   );
 
   if (downstreamMention) {
-    hints.reasoning.push(
-      `Logs mention downstream service ${downstreamMention.mentionedService}, may be downstream timeout`,
-    );
+    hints.reasoning.push(`Logs mention downstream service ${downstreamMention.mentionedService}, may be downstream timeout`);
     hints.shouldQueryDownstream = true;
     hints.downstreamSuggestions.push(downstreamMention.mentionedService);
     hints.suggestedNextAction = `Query downstream ${downstreamMention.mentionedService} logs to confirm timeout source`;
@@ -143,7 +147,11 @@ function analyzeRenderFailure(failure: HardFailure, hints: AnalysisHints): void 
   hints.missingInformation.push('Need to confirm specific render error cause (e.g. missing resource, parameter error)');
 }
 
-function analyzeMediaFailure(failure: HardFailure, hints: AnalysisHints, _projectConfig: ProjectConfig): void {
+function analyzeMediaFailure(
+  failure: HardFailure,
+  hints: AnalysisHints,
+  _projectConfig: ProjectConfig,
+): void {
   const subtype = failure.subtype;
 
   if (subtype === 'FILE_NOT_FOUND' || subtype === 'CODEC_ERROR' || subtype === 'INVALID_FORMAT') {
@@ -170,14 +178,12 @@ function analyzeDependencyFailure(
   hints.currentBestHypothesis = 'Downstream service call failed';
   hints.confidence = 'medium';
 
-  const downstreamMention = signals.crossProjectMentions.find((m) =>
+  const downstreamMention = signals.crossProjectMentions.find(m =>
     failure.error?.toLowerCase().includes(m.mentionedService.toLowerCase()),
   );
 
   if (downstreamMention) {
-    hints.reasoning.push(
-      `Current project only transparently passes downstream ${downstreamMention.mentionedService} error`,
-    );
+    hints.reasoning.push(`Current project only transparently passes downstream ${downstreamMention.mentionedService} error`);
     hints.shouldQueryDownstream = true;
     hints.downstreamSuggestions.push(downstreamMention.mentionedService);
     hints.suggestedNextAction = `Query ${downstreamMention.mentionedService} project for real failure reason`;
@@ -187,7 +193,10 @@ function analyzeDependencyFailure(
   }
 }
 
-function analyzeStateTransitions(transitions: SignalExtraction['stateTransitions'], hints: AnalysisHints): void {
+function analyzeStateTransitions(
+  transitions: SignalExtraction['stateTransitions'],
+  hints: AnalysisHints,
+): void {
   if (transitions.length < 2) return;
 
   const first = transitions[0];
@@ -229,7 +238,7 @@ function analyzeCrossProjectMentions(
 }
 
 function analyzeClusters(clusters: ErrorCluster[], hints: AnalysisHints): void {
-  const errorClusters = clusters.filter((c) => c.category === 'ERROR');
+  const errorClusters = clusters.filter(c => c.category === 'ERROR');
 
   if (errorClusters.length > 0) {
     const topError = errorClusters[0];
@@ -253,13 +262,11 @@ function determineNextAction(hints: AnalysisHints, _projectConfig: ProjectConfig
   }
 
   if (hints.missingInformation.length > 0) {
-    hints.suggestedNextAction =
-      hints.suggestedNextAction || 'Collect missing info: ' + hints.missingInformation.join(', ');
+    hints.suggestedNextAction = hints.suggestedNextAction || 'Collect missing info: ' + hints.missingInformation.join(', ');
     return;
   }
 
   if (!hints.suggestedNextAction) {
-    hints.suggestedNextAction =
-      'Generate preliminary conclusion based on current evidence, suggest user retry or wait for investigation';
+    hints.suggestedNextAction = 'Generate preliminary conclusion based on current evidence, suggest user retry or wait for investigation';
   }
 }

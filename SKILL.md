@@ -58,12 +58,32 @@ Use the primary identifier provided by the user and the preferred project determ
 - User explicitly reports test environment issue → `--env test`
 - Webhook-based projects do not need `--env` (no environment distinction)
 
-#### 3.3 Fallback & downstream tracing
+#### 3.3 Fallback (uid reverse lookup)
 
-| Scenario | Trigger | Steps | Stop when |
-|----------|---------|-------|-----------|
-| **uid reverse lookup** | 0 hits / only INFO / symptoms contradict logs | 1. Confirm uid via fetch-mongo 2. Window: 24h (expandable to 48h) 3. Query entry-point project with `<uid> AND (ERROR OR WARN OR FAIL)` 4. Query downstream projects in parallel 5. Use most recent failure as starting point | Found specific failure record |
-| **Downstream iterative trace** | Logs show "call to xx failed" / "downstream returned error" | 1. Extract downstream identifier (taskId/traceId/requestId) 2. Look up next-hop in `call-graph.md` 3. Query with new identifier 4. Repeat loop | Hard failure found / no stronger clues / no downstream records |
+**Trigger conditions** (any one):
+- Query returns 0 hits
+- Only INFO level logs, no ERROR/WARN
+- User-described symptoms contradict log status
+
+**Execution steps**:
+1. Confirm uid (obtained via fetch-mongo)
+2. Time window: default 24 hours, expandable to 48 hours
+3. Determine entry-point project based on user source
+4. Query downstream projects in parallel
+5. Filter: `<uid> AND (ERROR OR WARN OR FAIL)`
+6. Take the most recent failure record as analysis starting point
+
+#### 3.4 Downstream iterative tracing (auto-loop)
+
+If current project logs show failure originated from downstream (e.g. "call to xx failed", "downstream returned error"):
+
+1. Extract downstream identifier from current logs (taskId/traceId/requestId)
+2. Determine next-hop project from `call-graph.md`
+3. Query with new identifier
+4. Repeat until stop condition is met:
+   - Found specific hard failure point (concrete technical error + clear failure object)
+   - No stronger clues and must stop at current best analysis
+   - Downstream has no records and no association can be established
 
 ### 4. Analysis and attribution validation
 

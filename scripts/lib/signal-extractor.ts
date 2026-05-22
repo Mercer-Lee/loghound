@@ -97,7 +97,8 @@ function extractErrorStacks(entries: NormalizedEntry[]): ErrorStack[] {
     }
 
     if (!stackText) {
-      const rawContent = typeof raw === 'string' ? raw : raw?.content || raw?.LogJson || raw?.RawLog || '';
+      const rawContent = typeof raw === 'string' ? raw :
+        raw?.content || raw?.LogJson || raw?.RawLog || '';
       const parsed = typeof rawContent === 'string' ? tryParseJsonSafe(rawContent) : rawContent;
       const contentStr = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
       const stackMatch = contentStr.match(/"stack"\s*:\s*"((?:[^"\\]|\\.)*)"/);
@@ -279,14 +280,14 @@ function extractErrorMessageFromContent(content: string): string {
 const DEFAULT_HARD_FAILURE_PATTERNS: Record<string, { category: string; subtype: string }> = {
   'ResultReview.NotPass': { category: 'REVIEW', subtype: 'CONTENT_VIOLATION' },
   'Task.RenderFailed': { category: 'RENDER', subtype: 'RENDER_ERROR' },
-  RenderFailed: { category: 'RENDER', subtype: 'RENDER_ERROR' },
+  'RenderFailed': { category: 'RENDER', subtype: 'RENDER_ERROR' },
   'Task.Failed': { category: 'RENDER', subtype: 'TASK_FAILED' },
-  timeout: { category: 'TIMEOUT', subtype: 'DEADLINE_EXCEEDED' },
+  'timeout': { category: 'TIMEOUT', subtype: 'DEADLINE_EXCEEDED' },
   'deadline exceeded': { category: 'TIMEOUT', subtype: 'DEADLINE_EXCEEDED' },
   'context deadline exceeded': { category: 'TIMEOUT', subtype: 'DEADLINE_EXCEEDED' },
-  ECONNREFUSED: { category: 'NETWORK', subtype: 'CONNECTION_REFUSED' },
-  ECONNRESET: { category: 'NETWORK', subtype: 'CONNECTION_RESET' },
-  ETIMEDOUT: { category: 'NETWORK', subtype: 'CONNECTION_TIMEOUT' },
+  'ECONNREFUSED': { category: 'NETWORK', subtype: 'CONNECTION_REFUSED' },
+  'ECONNRESET': { category: 'NETWORK', subtype: 'CONNECTION_RESET' },
+  'ETIMEDOUT': { category: 'NETWORK', subtype: 'CONNECTION_TIMEOUT' },
   'Service.Error': { category: 'DEPENDENCY', subtype: 'DOWNSTREAM_ERROR' },
   'file not found': { category: 'MEDIA', subtype: 'FILE_NOT_FOUND' },
   'codec error': { category: 'MEDIA', subtype: 'CODEC_ERROR' },
@@ -335,10 +336,7 @@ function extractHardFailures(entries: NormalizedEntry[]): HardFailure[] {
     const summary = entry.summary;
     const content = `${summary.code || ''} ${summary.error || ''} ${summary.content || ''}`.toLowerCase();
 
-    for (const [pattern, classification] of Object.entries(loadSignalPatterns().hardFailure) as [
-      string,
-      { category: string; subtype: string },
-    ][]) {
+    for (const [pattern, classification] of Object.entries(loadSignalPatterns().hardFailure) as [string, { category: string; subtype: string }][]) {
       if (content.includes(pattern.toLowerCase())) {
         failures.push({
           time: summary.time,
@@ -371,10 +369,7 @@ function extractInfoFailures(entries: NormalizedEntry[]): InfoFailure[] {
     const summary = entry.summary;
     const content = `${summary.content || ''} ${summary.error || ''} ${summary.code || ''}`;
 
-    for (const [pattern, classification] of Object.entries(loadSignalPatterns().infoFailure) as [
-      string,
-      { category: string; subtype: string; severity: string },
-    ][]) {
+    for (const [pattern, classification] of Object.entries(loadSignalPatterns().infoFailure) as [string, { category: string; subtype: string; severity: string }][]) {
       if (content.toLowerCase().includes(pattern.toLowerCase())) {
         failures.push({
           time: summary.time,
@@ -439,8 +434,8 @@ function extractStateTransitions(entries: NormalizedEntry[]): StateTransition[] 
   const seenStates = new Set<string>();
 
   const sorted = [...entries].sort((a, b) => {
-    const timeA = new Date((a.summary.time as string) || 0).getTime();
-    const timeB = new Date((b.summary.time as string) || 0).getTime();
+    const timeA = new Date(a.summary.time as string || 0).getTime();
+    const timeB = new Date(b.summary.time as string || 0).getTime();
     return timeA - timeB;
   });
 
@@ -525,7 +520,7 @@ function classifyErrorPattern(
     { pattern: 'invalid character', category: 'PARAM_VALIDATION', message: 'Invalid character' },
   ];
 
-  const allContent = entries.map((e) => `${e.summary?.content || ''} ${e.summary?.error || ''}`).join(' ');
+  const allContent = entries.map(e => `${e.summary?.content || ''} ${e.summary?.error || ''}`).join(' ');
   for (const { pattern, category, message } of paramPatterns) {
     if (allContent.toLowerCase().includes(pattern.toLowerCase())) {
       result.category = category;
@@ -539,36 +534,34 @@ function classifyErrorPattern(
   }
 
   const timeoutPatterns = ['timeout', 'deadline exceeded', 'context deadline exceeded'];
-  const hasTimeout = timeoutPatterns.some((p) => allContent.toLowerCase().includes(p.toLowerCase()));
+  const hasTimeout = timeoutPatterns.some(p => allContent.toLowerCase().includes(p.toLowerCase()));
   if (hasTimeout) {
     result.category = 'TIMEOUT';
     result.confidence = 'medium';
     result.message = 'Service timeout';
     result.shouldQueryDownstream = true;
     result.downstreamTargets = extractDownstreamTargets(crossProjectMentions);
-    result.action =
-      result.downstreamTargets.length > 0
-        ? `Query downstream to confirm timeout source: ${result.downstreamTargets.join(', ')}`
-        : 'Check current service internal execution time';
+    result.action = result.downstreamTargets.length > 0
+      ? `Query downstream to confirm timeout source: ${result.downstreamTargets.join(', ')}`
+      : 'Check current service internal execution time';
     return result;
   }
 
-  const dependencyFailures = hardFailures.filter((f) => f.category === 'DEPENDENCY');
+  const dependencyFailures = hardFailures.filter(f => f.category === 'DEPENDENCY');
   if (dependencyFailures.length > 0) {
     result.category = 'DEPENDENCY_ERROR';
     result.confidence = 'medium';
     result.message = 'Downstream service call failed';
     result.shouldQueryDownstream = true;
     result.downstreamTargets = extractDownstreamTargets(crossProjectMentions);
-    result.action =
-      result.downstreamTargets.length > 0
-        ? `Query downstream for real failure reason: ${result.downstreamTargets.join(', ')}`
-        : 'Check downstream service connection status';
+    result.action = result.downstreamTargets.length > 0
+      ? `Query downstream for real failure reason: ${result.downstreamTargets.join(', ')}`
+      : 'Check downstream service connection status';
     return result;
   }
 
-  const renderFailures = [...hardFailures, ...infoFailures].filter(
-    (f) => f.category === 'RENDER' || f.subtype?.includes('PACKAGING') || f.subtype?.includes('RENDER'),
+  const renderFailures = [...hardFailures, ...infoFailures].filter(f =>
+    f.category === 'RENDER' || f.subtype?.includes('PACKAGING') || f.subtype?.includes('RENDER'),
   );
   if (renderFailures.length > 0) {
     result.category = 'RENDER_FAILURE';
@@ -580,7 +573,7 @@ function classifyErrorPattern(
     return result;
   }
 
-  const reviewFailures = hardFailures.filter((f) => f.category === 'REVIEW');
+  const reviewFailures = hardFailures.filter(f => f.category === 'REVIEW');
   if (reviewFailures.length > 0) {
     result.category = 'CONTENT_REVIEW';
     result.confidence = 'high';
@@ -614,8 +607,8 @@ function classifyErrorPattern(
 }
 
 export function extractSignals(hits: QueryHit[], projectConfig: ProjectConfig): SignalExtraction {
-  const allEntries = hits.flatMap((hit) =>
-    (hit.body || []).map((entry) => ({
+  const allEntries = hits.flatMap(hit =>
+    (hit.body || []).map(entry => ({
       ...entry,
       _sourceAlias: hit.source?.alias || hit.source?.name,
     })),
@@ -645,12 +638,29 @@ export function extractSignals(hits: QueryHit[], projectConfig: ProjectConfig): 
   };
 }
 
-const NOISE_EVENT_PATTERNS = ['getUserInfo', 'slow request', 'healthcheck', 'heartbeat', 'health', 'ping', 'metrics'];
+const NOISE_EVENT_PATTERNS = [
+  'getUserInfo',
+  'slow request',
+  'healthcheck',
+  'heartbeat',
+  'health',
+  'ping',
+  'metrics',
+];
 
-const KEY_EVENT_PATTERNS = ['render', 'callback', 'failed', 'workflow', 'task', 'submit', 'process', 'create'];
+const KEY_EVENT_PATTERNS = [
+  'render',
+  'callback',
+  'failed',
+  'workflow',
+  'task',
+  'submit',
+  'process',
+  'create',
+];
 
 export function filterNoiseEvents(entries: NormalizedEntry[]): NormalizedEntry[] {
-  return entries.filter((entry) => {
+  return entries.filter(entry => {
     const summary = entry.summary || {};
     const event = (summary.event || '').toLowerCase();
     const content = (summary.content || '').toLowerCase();
