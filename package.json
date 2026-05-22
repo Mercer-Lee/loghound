@@ -7,7 +7,8 @@
     "fetch-logs": "tsx scripts/fetch-logs.ts",
     "fetch-webhook": "tsx scripts/fetch-webhook.ts",
     "fetch-mongo": "tsx scripts/fetch-mongo.ts",
-    "fetch-sql": "tsx scripts/fetch-sql.ts"
+    "fetch-sql": "tsx scripts/fetch-sql.ts",
+    "format": "prettier --write 'scripts/**/*.ts'"
   },
   "keywords": [
     "incident",
@@ -24,7 +25,6 @@
     "@alicloud/credentials": "^2.4.4",
     "@alicloud/openapi-client": "^0.4.15",
     "@alicloud/sls20201230": "^5.9.0",
-    "@volcengine/openapi": "^1.36.0",
     "dotenv": "^17.4.2",
     "mongodb": "^7.1.1",
     "p-limit": "^7.3.0",
@@ -35,6 +35,7 @@
     "@types/node": "^25.9.1",
     "@types/pg": "^8.20.0",
     "tsx": "^4.22.3",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "prettier": "^3.5.3"
   }
 }

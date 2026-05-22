@@ -4,7 +4,7 @@
 
 生产事故排查工具——多云日志聚合、信号提取与 AI 驱动的根因分析。
 
-支持阿里云 SLS、腾讯云 CLS、火山引擎 TLS、Webhook 工作流引擎和用户身份查询，将标准化结果交给 AI 驱动的根因分析。
+支持阿里云 SLS、腾讯云 CLS、Webhook 工作流引擎和数据库查询（MongoDB、SQL），将标准化结果交给 AI 驱动的根因分析。
 
 ## 安装
 
@@ -27,7 +27,7 @@ cp config/projects.example.json config/projects.json
 ```
 
 每个项目的关键字段：
-- `vendor` / `queryBackend`：使用哪种云日志服务（`sls`、`cls`、`tls`、`webhook`）
+- `vendor` / `queryBackend`：使用哪种云日志服务（`sls`、`cls`、`webhook`）
 - `envs.<env>.sources`：要查询的日志存储 / Topic，包含架构层级和用途
 - `downstream`：该项目调用了哪些其他项目（用于自动链路追踪）
 - `keywords`：标识该项目的关键词，用于跨项目日志关联
@@ -99,9 +99,6 @@ npm run fetch-sql -- --query someValue --json
 |------|------|--------|
 | `SLS_ACCESS_KEY_ID` / `SLS_ACCESS_KEY_SECRET` | 阿里云 SLS | `fetch-logs`（SLS） |
 | `CLS_SECRET_ID` / `CLS_SECRET_KEY` | 腾讯云 CLS | `fetch-logs`（CLS） |
-| `TLS_ACCESS_KEY_ID` / `TLS_ACCESS_KEY_SECRET` | 火山引擎 TLS | `fetch-logs`（TLS） |
-| `TLS_SESSION_TOKEN` | 火山引擎 TLS 临时 Token | `fetch-logs`（可选） |
-| `TLS_HOST` | 火山引擎 TLS 端点 | `fetch-logs`（TLS） |
 
 ### Webhook
 

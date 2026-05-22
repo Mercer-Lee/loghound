@@ -79,9 +79,13 @@ async function fetchSql(args: FetchSqlArgs): Promise<LookupResult> {
   });
 
   try {
-    const selectFields = args.returnFields === '*'
-      ? '*'
-      : args.returnFields.split(',').map(f => `"${f.trim()}"`).join(', ');
+    const selectFields =
+      args.returnFields === '*'
+        ? '*'
+        : args.returnFields
+            .split(',')
+            .map((f) => `"${f.trim()}"`)
+            .join(', ');
 
     const sql = `SELECT ${selectFields} FROM "${args.table}" WHERE "${args.lookupField}" = $1 LIMIT 1`;
     const { rows } = await pool.query(sql, [args.query]);
