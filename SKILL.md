@@ -10,6 +10,16 @@ Use this skill for production incident investigation. The work is split into two
 - **script layer**: fetch and normalize evidence
 - **analysis layer**: determine responsibility, failure stage, next hop, and the deepest specific failure point
 
+## Setup and usage documentation
+
+This file defines how the AI agent should use the skill during an investigation.
+User-facing setup and command usage are documented separately:
+
+- `README.md` / `README.zh-CN.md`: installation, environment variables, project configuration, and common commands
+- `.env.example`: credential and connection-string template
+- `config/projects.example.json`: project topology and log source configuration schema
+- `references/call-graph.md`: service topology and routing rules used during investigation
+
 ## Default workflow
 
 ### 0. Problem definition and classification (must run first)
