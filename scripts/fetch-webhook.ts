@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 import 'dotenv/config';
 import { toSingleLine, tryParseJson } from './lib';
+import { parsePositiveInteger } from './lib/cli-utils';
 import {
   buildStageHints,
   buildTimeline,
@@ -36,7 +37,7 @@ function parseArgs(argv: string[]): FetchWebhookArgs {
       out.errorApiUrl = next;
       i += 1;
     } else if (cur === '--timeout-ms' && next) {
-      out.timeoutMs = Number(next);
+      out.timeoutMs = parsePositiveInteger(next, '--timeout-ms', { min: 1000, max: 120000 });
       i += 1;
     } else if (cur === '--json') {
       out.json = true;

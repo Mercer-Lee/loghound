@@ -9,7 +9,7 @@ Queries Alibaba Cloud SLS, Tencent Cloud CLS, Volcengine TLS, webhook-based work
 ## Setup
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 1. Configure credentials
@@ -46,22 +46,22 @@ Edit `references/call-graph.md` to describe your service topology, routing rules
 
 ```bash
 # Query cloud logs
-npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --hours 24
+pnpm fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --hours 24
 
 # Query with raw log data included (default JSON output strips raw to save tokens)
-npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --json --include-raw
+pnpm fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --json --include-raw
 
 # Query webhook-based workflow engine
-npm run fetch-webhook -- --taskId xxx --json
+pnpm fetch-webhook -- --taskId xxx --json
 
 # Look up record from MongoDB
-npm run fetch-mongo -- --query 12345 --collection myCollection --lookup-field userNo --json
+pnpm fetch-mongo -- --query 12345 --collection myCollection --lookup-field userNo --json
 
 # Look up record from MongoDB (test environment)
-npm run fetch-mongo -- --query 12345 --env test --json
+pnpm fetch-mongo -- --query 12345 --env test --json
 
 # Look up record from SQL database
-npm run fetch-sql -- --query someValue --json
+pnpm fetch-sql -- --query someValue --json
 ```
 
 ## Architecture

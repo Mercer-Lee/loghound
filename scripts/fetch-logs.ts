@@ -17,6 +17,7 @@ import {
   toSingleLine,
   tryParseJson,
 } from './lib';
+import { parsePositiveInteger } from './lib/cli-utils';
 import {
   buildStageHints as sharedBuildStageHints,
   buildTimeline,
@@ -68,10 +69,10 @@ function parseArgs(argv: string[]): FetchLogsArgs {
       out.query = next;
       i += 1;
     } else if (cur === '--hours' && next) {
-      out.hours = Number(next);
+      out.hours = parsePositiveInteger(next, '--hours', { min: 1, max: 24 * 31 });
       i += 1;
     } else if (cur === '--lines' && next) {
-      out.lines = Number(next);
+      out.lines = parsePositiveInteger(next, '--lines', { min: 1, max: 1000 });
       i += 1;
     } else if (cur === '--source' && next) {
       out.sources = next

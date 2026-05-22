@@ -9,7 +9,7 @@
 ## 安装
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 1. 配置凭据
@@ -46,22 +46,22 @@ cp config/projects.example.json config/projects.json
 
 ```bash
 # 查询云日志
-npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --hours 24
+pnpm fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --hours 24
 
 # 查询时包含原始日志（默认 JSON 输出会省略 raw 以节省 token）
-npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --json --include-raw
+pnpm fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --json --include-raw
 
 # 查询 Webhook 工作流引擎
-npm run fetch-webhook -- --taskId xxx --json
+pnpm fetch-webhook -- --taskId xxx --json
 
 # 查询 MongoDB 记录
-npm run fetch-mongo -- --query 12345 --collection myCollection --lookup-field userNo --json
+pnpm fetch-mongo -- --query 12345 --collection myCollection --lookup-field userNo --json
 
 # 查询 MongoDB 记录（测试环境）
-npm run fetch-mongo -- --query 12345 --env test --json
+pnpm fetch-mongo -- --query 12345 --env test --json
 
 # 查询 SQL 数据库
-npm run fetch-sql -- --query someValue --json
+pnpm fetch-sql -- --query someValue --json
 ```
 
 ## 架构

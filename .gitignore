@@ -8,6 +8,7 @@ config/projects.json
 
 # Dependencies
 node_modules/
+package-lock.json
 
 # Claude Code local settings
 .claude/

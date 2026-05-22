@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "description": "Production incident investigation tool — multi-cloud log aggregation, signal extraction, and AI-driven root cause analysis.",
   "main": "scripts/fetch-logs.ts",
+  "packageManager": "pnpm@10.11.0",
   "scripts": {
     "fetch-logs": "tsx scripts/fetch-logs.ts",
     "fetch-webhook": "tsx scripts/fetch-webhook.ts",
     "fetch-mongo": "tsx scripts/fetch-mongo.ts",
     "fetch-sql": "tsx scripts/fetch-sql.ts",
     "test": "node --import tsx --test scripts/lib/__tests__/*.test.ts",
+    "typecheck": "tsc --noEmit",
     "format": "prettier --write 'scripts/**/*.ts'"
   },
   "keywords": [
@@ -25,6 +27,7 @@
   "dependencies": {
     "@alicloud/credentials": "^2.4.4",
     "@alicloud/openapi-client": "^0.4.15",
+    "@alicloud/openapi-core": "^1.0.7",
     "@alicloud/sls20201230": "^5.9.0",
     "@volcengine/openapi": "^1.36.0",
     "dotenv": "^17.4.2",
