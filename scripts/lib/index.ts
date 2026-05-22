@@ -57,6 +57,7 @@ export function getProjectConfig(projectName: string, env: string): ProjectConfi
     region: envConfig.region,
     projectId: envConfig.projectId || '',
     sources: envConfig.sources || [],
+    signalPatterns: project.signalPatterns || undefined,
   };
 }
 

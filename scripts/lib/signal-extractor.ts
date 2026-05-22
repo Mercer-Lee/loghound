@@ -310,32 +310,46 @@ interface LoadedPatterns {
 
 let _patternsCache: LoadedPatterns | null = null;
 
-function loadSignalPatterns(): LoadedPatterns {
-  if (_patternsCache) return _patternsCache;
+function loadSignalPatterns(projectExtra?: ProjectConfig['signalPatterns']): LoadedPatterns {
+  if (_patternsCache && !projectExtra) return _patternsCache;
   try {
     const file = path.join(__dirname, '..', '..', 'config', 'signal-patterns.json');
     const config = JSON.parse(fs.readFileSync(file, 'utf8'));
-    _patternsCache = {
+    const base: LoadedPatterns = {
       hardFailure: config.hardFailurePatterns || DEFAULT_HARD_FAILURE_PATTERNS,
       infoFailure: config.infoFailurePatterns || DEFAULT_INFO_FAILURE_PATTERNS,
     };
+    if (!projectExtra) _patternsCache = base;
+    return projectExtra ? mergePatterns(base, projectExtra) : base;
   } catch {
-    _patternsCache = {
+    const base: LoadedPatterns = {
       hardFailure: DEFAULT_HARD_FAILURE_PATTERNS,
       infoFailure: DEFAULT_INFO_FAILURE_PATTERNS,
     };
+    if (!projectExtra) _patternsCache = base;
+    return projectExtra ? mergePatterns(base, projectExtra) : base;
   }
-  return _patternsCache;
 }
 
-function extractHardFailures(entries: NormalizedEntry[]): HardFailure[] {
+function mergePatterns(base: LoadedPatterns, extra: NonNullable<ProjectConfig['signalPatterns']>): LoadedPatterns {
+  return {
+    hardFailure: { ...base.hardFailure, ...(extra.hardFailure || {}) },
+    infoFailure: { ...base.infoFailure, ...(extra.infoFailure || {}) },
+  };
+}
+
+function extractHardFailures(
+  entries: NormalizedEntry[],
+  patterns?: Record<string, { category: string; subtype: string }>,
+): HardFailure[] {
   const failures: HardFailure[] = [];
+  const hardPatterns = patterns || loadSignalPatterns().hardFailure;
 
   for (const entry of entries) {
     const summary = entry.summary;
     const content = `${summary.code || ''} ${summary.error || ''} ${summary.content || ''}`.toLowerCase();
 
-    for (const [pattern, classification] of Object.entries(loadSignalPatterns().hardFailure) as [
+    for (const [pattern, classification] of Object.entries(hardPatterns) as [
       string,
       { category: string; subtype: string },
     ][]) {
@@ -364,14 +378,18 @@ function extractHardFailures(entries: NormalizedEntry[]): HardFailure[] {
   return failures;
 }
 
-function extractInfoFailures(entries: NormalizedEntry[]): InfoFailure[] {
+function extractInfoFailures(
+  entries: NormalizedEntry[],
+  patterns?: Record<string, { category: string; subtype: string; severity: string }>,
+): InfoFailure[] {
   const failures: InfoFailure[] = [];
+  const infoPatterns = patterns || loadSignalPatterns().infoFailure;
 
   for (const entry of entries) {
     const summary = entry.summary;
     const content = `${summary.content || ''} ${summary.error || ''} ${summary.code || ''}`;
 
-    for (const [pattern, classification] of Object.entries(loadSignalPatterns().infoFailure) as [
+    for (const [pattern, classification] of Object.entries(infoPatterns) as [
       string,
       { category: string; subtype: string; severity: string },
     ][]) {
@@ -621,8 +639,9 @@ export function extractSignals(hits: QueryHit[], projectConfig: ProjectConfig): 
     })),
   );
 
-  const hardFailures = extractHardFailures(allEntries);
-  const infoFailures = extractInfoFailures(allEntries);
+  const patterns = loadSignalPatterns(projectConfig.signalPatterns);
+  const hardFailures = extractHardFailures(allEntries, patterns.hardFailure);
+  const infoFailures = extractInfoFailures(allEntries, patterns.infoFailure);
   const stateTransitions = extractStateTransitions(allEntries);
   const crossProjectMentions = extractCrossProjectMentions(allEntries, projectConfig.name);
   const errorStacks = extractErrorStacks(allEntries);
@@ -645,7 +664,7 @@ export function extractSignals(hits: QueryHit[], projectConfig: ProjectConfig): 
   };
 }
 
-const NOISE_EVENT_PATTERNS = ['getUserInfo', 'slow request', 'healthcheck', 'heartbeat', 'health', 'ping', 'metrics'];
+const NOISE_EVENT_PATTERNS = ['getUserInfo', 'healthcheck', 'heartbeat', 'health check', 'ping', 'metrics'];
 
 const KEY_EVENT_PATTERNS = ['render', 'callback', 'failed', 'workflow', 'task', 'submit', 'process', 'create'];
 

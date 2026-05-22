@@ -26,6 +26,10 @@ export interface ProjectDefinition {
   downstream?: string[];
   keywords?: string[];
   taskPatterns?: TaskPattern[];
+  signalPatterns?: {
+    hardFailure?: Record<string, { category: string; subtype: string }>;
+    infoFailure?: Record<string, { category: string; subtype: string; severity: string }>;
+  };
   multiEnvs?: string[];
   envs: Record<string, EnvConfig>;
 }
@@ -38,6 +42,10 @@ export interface ProjectConfig {
   downstream: string[];
   keywords: string[];
   taskPatterns: TaskPattern[];
+  signalPatterns?: {
+    hardFailure?: Record<string, { category: string; subtype: string }>;
+    infoFailure?: Record<string, { category: string; subtype: string; severity: string }>;
+  };
   region: string;
   projectId: string;
   sources: SourceConfig[];
@@ -355,6 +363,7 @@ export interface FetchLogsArgs {
   json: boolean;
   autoFallback: boolean;
   includeRaw: boolean;
+  sources: string[];
   _fallbackInfo?: FallbackInfo;
 }
 

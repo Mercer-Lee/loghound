@@ -8,6 +8,7 @@
     "fetch-webhook": "tsx scripts/fetch-webhook.ts",
     "fetch-mongo": "tsx scripts/fetch-mongo.ts",
     "fetch-sql": "tsx scripts/fetch-sql.ts",
+    "test": "node --import tsx --test scripts/lib/__tests__/*.test.ts",
     "format": "prettier --write 'scripts/**/*.ts'"
   },
   "keywords": [

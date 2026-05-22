@@ -52,6 +52,7 @@ function parseArgs(argv: string[]): FetchLogsArgs {
     json: false,
     autoFallback: true,
     includeRaw: false,
+    sources: [],
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -71,6 +72,12 @@ function parseArgs(argv: string[]): FetchLogsArgs {
       i += 1;
     } else if (cur === '--lines' && next) {
       out.lines = Number(next);
+      i += 1;
+    } else if (cur === '--source' && next) {
+      out.sources = next
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       i += 1;
     } else if (cur === '--json') {
       out.json = true;
@@ -122,19 +129,39 @@ function normalizeSlsLog(entry: any, source: SourceConfig & { alias: string }): 
 
 function normalizeClsResult(result: any, source: SourceConfig & { alias: string }): NormalizedEntry {
   const parsed = (tryParseJson(result.LogJson) as any) || {};
-  const embedded = extractEmbeddedJson(parsed.__CONTENT__) as any;
+  const rawContent = parsed.__CONTENT__ || '';
+  const embedded = extractEmbeddedJson(rawContent) as any;
   const extra = embedded && embedded.extra && typeof embedded.extra === 'object' ? embedded.extra : {};
   const customExtra = extra.customExtra && typeof extra.customExtra === 'object' ? extra.customExtra : {};
   const tags = parsed.__TAG__ && typeof parsed.__TAG__ === 'object' ? parsed.__TAG__ : {};
 
+  const prefixLevelMatch = rawContent.match(/\b(INFO|WARN|ERROR|DEBUG)\s+\d/);
+  const prefixLevel = prefixLevelMatch ? prefixLevelMatch[1] : '';
+  const prefixTraceIdMatch = rawContent.match(/traceId:([a-f0-9]{16,})/i);
+  const prefixTraceId = prefixTraceIdMatch ? prefixTraceIdMatch[1] : '';
+
   return {
     summary: {
       time: embedded?.time || parsed.time || parsed.timestamp || result.Time,
-      level: embedded?.level || parsed.level || parsed.Level,
+      level: embedded?.level || parsed.level || parsed.Level || prefixLevel,
       event: embedded?.event || parsed.event || parsed.action || parsed.module,
-      content: embedded?.content || parsed.content || parsed.message || parsed.msg || result.RawLog || '',
+      content:
+        embedded?.content ||
+        extra.message ||
+        parsed.content ||
+        parsed.message ||
+        parsed.msg ||
+        (!embedded && rawContent ? rawContent : '') ||
+        result.RawLog ||
+        '',
       traceId:
-        embedded?.traceId || parsed.traceId || parsed.trace_id || parsed.requestId || extra.traceId || extra.requestId,
+        embedded?.traceId ||
+        prefixTraceId ||
+        parsed.traceId ||
+        parsed.trace_id ||
+        parsed.requestId ||
+        extra.traceId ||
+        extra.requestId,
       taskId:
         embedded?.taskId ||
         extra.taskId ||
@@ -158,7 +185,14 @@ function normalizeClsResult(result: any, source: SourceConfig & { alias: string 
       prompt:
         extra.prompt || extra.text || embedded?.prompt || embedded?.text || customExtra.prompt || customExtra.text,
       code: extra.errorCode || embedded?.code || parsed.code || parsed.errCode,
-      error: extra.errorMessage || embedded?.error || parsed.error || parsed.err || parsed.errMsg || parsed.message,
+      error:
+        extra.errorMessage ||
+        embedded?.error ||
+        embedded?.err ||
+        parsed.error ||
+        parsed.err ||
+        parsed.errMsg ||
+        parsed.message,
       layer: source.layer,
       sourceName: source.alias || source.name,
       sourceKind: 'cls',
@@ -698,6 +732,16 @@ async function queryAllSources(
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const projectConfigs = expandProjectConfigs(args.project, args.env).map(tagProjectConfigSources);
+
+  if (args.sources.length > 0) {
+    const filterSet = new Set(args.sources);
+    const matchSource = (s: SourceConfig & { alias: string }) =>
+      filterSet.has(s.name) || filterSet.has(s.alias || '') || filterSet.has(s.alias?.replace(/^[^:]+:/, '') || '');
+    for (const pc of projectConfigs) {
+      pc.sources = pc.sources.filter(matchSource);
+    }
+  }
+
   const primaryProjectConfig = {
     ...projectConfigs[0],
     env: projectConfigs.map((item) => item.env).join(','),
