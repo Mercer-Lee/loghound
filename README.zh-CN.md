@@ -118,15 +118,16 @@ npm run fetch-uid -- --userNo 12345 --env test --json
 | `TEST_MONGO_LOOKUP_FIELD` | 测试环境匹配字段 |
 | `TEST_MONGO_RETURN_FIELDS` | 测试环境返回字段 |
 
-### MySQL（预留）
+### SQL（预留）
 
 | 变量 | 用途 |
 |------|------|
-| `MYSQL_HOST` / `TEST_MYSQL_HOST` | MySQL 地址 |
-| `MYSQL_PORT` / `TEST_MYSQL_PORT` | MySQL 端口 |
-| `MYSQL_USER` / `TEST_MYSQL_USER` | MySQL 用户名 |
-| `MYSQL_PASSWORD` / `TEST_MYSQL_PASSWORD` | MySQL 密码 |
-| `MYSQL_DATABASE` / `TEST_MYSQL_DATABASE` | MySQL 数据库名 |
+| `SQL_HOST` / `TEST_SQL_HOST` | 数据库地址 |
+| `SQL_PORT` / `TEST_SQL_PORT` | 数据库端口 |
+| `SQL_USER` / `TEST_SQL_USER` | 数据库用户名 |
+| `SQL_PASSWORD` / `TEST_SQL_PASSWORD` | 数据库密码 |
+| `SQL_DATABASE` / `TEST_SQL_DATABASE` | 数据库名 |
+| `SQL_DIALECT` / `TEST_SQL_DIALECT` | 数据库类型（如 `mysql`、`postgres`） |
 
 ## 项目配置
 

@@ -118,15 +118,16 @@ User report (ID + symptoms)
 | `TEST_MONGO_LOOKUP_FIELD` | Test environment lookup field |
 | `TEST_MONGO_RETURN_FIELDS` | Test environment return fields |
 
-### MySQL (reserved)
+### SQL (reserved)
 
 | Variable | Purpose |
 |----------|---------|
-| `MYSQL_HOST` / `TEST_MYSQL_HOST` | MySQL host |
-| `MYSQL_PORT` / `TEST_MYSQL_PORT` | MySQL port |
-| `MYSQL_USER` / `TEST_MYSQL_USER` | MySQL user |
-| `MYSQL_PASSWORD` / `TEST_MYSQL_PASSWORD` | MySQL password |
-| `MYSQL_DATABASE` / `TEST_MYSQL_DATABASE` | MySQL database name |
+| `SQL_HOST` / `TEST_SQL_HOST` | Database host |
+| `SQL_PORT` / `TEST_SQL_PORT` | Database port |
+| `SQL_USER` / `TEST_SQL_USER` | Database user |
+| `SQL_PASSWORD` / `TEST_SQL_PASSWORD` | Database password |
+| `SQL_DATABASE` / `TEST_SQL_DATABASE` | Database name |
+| `SQL_DIALECT` / `TEST_SQL_DIALECT` | Database dialect (e.g. `mysql`, `postgres`) |
 
 ## Project configuration
 
