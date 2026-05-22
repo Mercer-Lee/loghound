@@ -1,0 +1,27 @@
+{
+  "hardFailurePatterns": {
+    "ResultReview.NotPass": { "category": "REVIEW", "subtype": "CONTENT_VIOLATION" },
+    "Task.RenderFailed": { "category": "RENDER", "subtype": "RENDER_ERROR" },
+    "RenderFailed": { "category": "RENDER", "subtype": "RENDER_ERROR" },
+    "Task.Failed": { "category": "RENDER", "subtype": "TASK_FAILED" },
+    "timeout": { "category": "TIMEOUT", "subtype": "DEADLINE_EXCEEDED" },
+    "deadline exceeded": { "category": "TIMEOUT", "subtype": "DEADLINE_EXCEEDED" },
+    "context deadline exceeded": { "category": "TIMEOUT", "subtype": "DEADLINE_EXCEEDED" },
+    "ECONNREFUSED": { "category": "NETWORK", "subtype": "CONNECTION_REFUSED" },
+    "ECONNRESET": { "category": "NETWORK", "subtype": "CONNECTION_RESET" },
+    "ETIMEDOUT": { "category": "NETWORK", "subtype": "CONNECTION_TIMEOUT" },
+    "Service.Error": { "category": "DEPENDENCY", "subtype": "DOWNSTREAM_ERROR" },
+    "file not found": { "category": "MEDIA", "subtype": "FILE_NOT_FOUND" },
+    "codec error": { "category": "MEDIA", "subtype": "CODEC_ERROR" },
+    "invalid media format": { "category": "MEDIA", "subtype": "INVALID_FORMAT" }
+  },
+  "infoFailurePatterns": {
+    "processing failed": { "category": "PROCESS", "subtype": "PROCESSING_FAILED", "severity": "HIGH" },
+    "task failed": { "category": "PROCESS", "subtype": "TASK_FAILED", "severity": "HIGH" },
+    "callback failed": { "category": "CALLBACK", "subtype": "CALLBACK_FAILED", "severity": "HIGH" },
+    "submit failed": { "category": "SUBMIT", "subtype": "SUBMIT_FAILED", "severity": "HIGH" },
+    "download failed": { "category": "MATERIAL", "subtype": "DOWNLOAD_FAILED", "severity": "HIGH" },
+    "resource unreachable": { "category": "MATERIAL", "subtype": "RESOURCE_UNREACHABLE", "severity": "HIGH" },
+    "unsupported format": { "category": "PARAM", "subtype": "FORMAT_UNSUPPORTED", "severity": "HIGH" }
+  }
+}

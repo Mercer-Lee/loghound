@@ -24,9 +24,14 @@ const SLS_REGION_ENDPOINTS: Record<string, string> = {
   'eu-central-1': 'eu-central-1.log.aliyuncs.com',
 };
 
+let _projectsCache: Record<string, ProjectDefinition> | null = null;
+
 export function readProjectsConfig(): Record<string, ProjectDefinition> {
-  const file = path.join(__dirname, '..', '..', 'config', 'projects.json');
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!_projectsCache) {
+    const file = path.join(__dirname, '..', '..', 'config', 'projects.json');
+    _projectsCache = JSON.parse(fs.readFileSync(file, 'utf8'));
+  }
+  return _projectsCache!;
 }
 
 export function getProjectConfig(projectName: string, env: string): ProjectConfig {

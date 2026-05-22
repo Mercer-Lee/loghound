@@ -34,7 +34,11 @@ Key fields per project:
 - `taskPatterns`: `{type, regex}` pairs for taskId format recognition
 - `multiEnvs`: If set, a single `--env` query expands across multiple env configs (e.g. multi-region prod)
 
-### 3. Configure topology
+### 3. Configure signal patterns
+
+Edit `config/signal-patterns.json` to customize which error patterns are classified as hard failures (e.g. timeout, network errors) and info failures (e.g. processing failed, callback failed). The file is pre-filled with sensible defaults — only edit if your services produce different error patterns.
+
+### 4. Configure topology
 
 Edit `references/call-graph.md` to describe your service topology, routing rules, and escalation paths.
 
@@ -43,6 +47,9 @@ Edit `references/call-graph.md` to describe your service topology, routing rules
 ```bash
 # Query cloud logs
 npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --hours 24
+
+# Query with raw log data included (default JSON output strips raw to save tokens)
+npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --json --include-raw
 
 # Query webhook-based workflow engine
 npm run fetch-webhook -- --taskId xxx --json

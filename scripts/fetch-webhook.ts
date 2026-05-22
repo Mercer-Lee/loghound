@@ -1,14 +1,26 @@
 #!/usr/bin/env tsx
 import 'dotenv/config';
 import { toSingleLine, tryParseJson } from './lib';
+import {
+  buildStageHints,
+  buildTimeline,
+  extractIdentifiers,
+  printExtractedIdentifiers,
+  printStageHints,
+  printSummary,
+  stripRawFields,
+} from './lib/shared';
 
-import type { FetchWebhookArgs, NormalizedEntry, PreprocessResult, StageHints, TimelineEntry } from './lib/types';function parseArgs(argv: string[]): FetchWebhookArgs {
+import type { FetchWebhookArgs, NormalizedEntry, PreprocessResult } from './lib/types';
+
+function parseArgs(argv: string[]): FetchWebhookArgs {
   const out: FetchWebhookArgs = {
     taskId: '',
     apiUrl: process.env.WEBHOOK_API_URL,
     errorApiUrl: process.env.WEBHOOK_ERROR_API_URL,
     timeoutMs: 15000,
     json: false,
+    includeRaw: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -28,6 +40,8 @@ import type { FetchWebhookArgs, NormalizedEntry, PreprocessResult, StageHints, T
       i += 1;
     } else if (cur === '--json') {
       out.json = true;
+    } else if (cur === '--include-raw') {
+      out.includeRaw = true;
     }
   }
 
@@ -277,91 +291,6 @@ function normalizeRecord(record: any, index: number, fallbackTaskId: string): No
   return normalizeGenericRecord(record, index, fallbackTaskId);
 }
 
-function extractIdentifiers(entries: NormalizedEntry[], fallbackTaskId: string): Record<string, string> {
-  const identifiers: Record<string, string> = { taskId: fallbackTaskId };
-  for (const entry of entries) {
-    const summary = entry.summary || {};
-    for (const key of ['traceId', 'taskId', 'requestId', 'uid'] as const) {
-      if (!identifiers[key] && summary[key]) {
-        identifiers[key] = summary[key];
-      }
-    }
-  }
-  return identifiers;
-}
-
-function toTimestamp(value: unknown): number {
-  if (value === undefined || value === null || value === '') {
-    return 0;
-  }
-  if (typeof value === 'number') {
-    return value > 1000000000000 ? value : value * 1000;
-  }
-  const numeric = Number(value);
-  if (Number.isFinite(numeric) && numeric > 0) {
-    return numeric > 1000000000000 ? numeric : numeric * 1000;
-  }
-  const parsed = Date.parse(String(value));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function buildTimeline(entries: NormalizedEntry[]): TimelineEntry[] {
-  return entries
-    .map((entry) => ({
-      timestamp: toTimestamp(entry.summary.time),
-      time: entry.summary.time || '',
-      layer: entry.summary.layer || 'workflow',
-      source: entry.summary.sourceName || 'webhook-workflow',
-      level: entry.summary.level || '',
-      event: entry.summary.event || '',
-      content: entry.summary.content || '',
-      status: entry.summary.status || '',
-      error: entry.summary.error || '',
-      traceId: entry.summary.traceId || '',
-      taskId: entry.summary.taskId || '',
-      requestId: entry.summary.requestId || '',
-      uid: entry.summary.uid || '',
-      nodeStep: entry.summary.nodeStep || 0,
-    }))
-    .sort((a, b) => {
-      if (a.timestamp !== b.timestamp) {
-        return b.timestamp - a.timestamp;
-      }
-      return (b.nodeStep || 0) - (a.nodeStep || 0);
-    });
-}
-
-function buildStageHints(timeline: TimelineEntry[]): StageHints {
-  const first = timeline[timeline.length - 1] || null;
-  const last = timeline[0] || null;
-  const lastErrored = timeline.find((item) => item.error || item.status === 'failed') || null;
-  return {
-    firstVisibleEvent: first ? {
-      time: first.time,
-      source: first.source,
-      layer: first.layer,
-      event: first.event,
-      content: first.content,
-    } : null,
-    lastVisibleEvent: last ? {
-      time: last.time,
-      source: last.source,
-      layer: last.layer,
-      event: last.event,
-      content: last.content,
-      status: last.status,
-    } : null,
-    lastErrorEvent: lastErrored ? {
-      time: lastErrored.time,
-      source: lastErrored.source,
-      layer: lastErrored.layer,
-      event: lastErrored.event,
-      content: lastErrored.content,
-      error: lastErrored.error || lastErrored.status,
-    } : null,
-  };
-}
-
 function buildResult(args: FetchWebhookArgs, payload: any, meta: { apiUrl?: string; route?: string } = {}): PreprocessResult {
   const records = findRecords(payload, args.taskId);
   const hits = records.map((record: any, index: number) => normalizeRecord(record, index, args.taskId));
@@ -391,7 +320,7 @@ function buildResult(args: FetchWebhookArgs, payload: any, meta: { apiUrl?: stri
     ],
     matchedSourceCount: hits.length > 0 ? 1 : 0,
     failedSourceCount: 0,
-    extractedIdentifiers: extractIdentifiers(hits, args.taskId),
+    extractedIdentifiers: extractIdentifiers(hits, { taskId: args.taskId }),
     stageHints: buildStageHints(timeline),
     signalExtraction: {
       hardFailures: [],
@@ -479,34 +408,6 @@ async function fetchWebhook(args: FetchWebhookArgs): Promise<PreprocessResult> {
   return buildResult(args, fallbackPayload, { apiUrl: args.apiUrl, route: 'fallback-general' });
 }
 
-function printSummary(summary: any, index: number): void {
-  const lead = [summary.time, summary.level, summary.event, summary.content]
-    .filter(Boolean)
-    .join(' | ');
-  console.log(`  ${index + 1}. ${lead || '(empty entry)'}`);
-
-  const details = [
-    ['traceId', summary.traceId],
-    ['taskId', summary.taskId],
-    ['requestId', summary.requestId],
-    ['uid', summary.uid],
-    ['status', summary.status],
-    ['type', summary.type],
-    ['code', summary.code],
-    ['error', summary.error],
-    ['layer', summary.layer],
-    ['source', summary.sourceName],
-    ['workflowName', summary.workflowName],
-    ['executionId', summary.executionId],
-    ['step', summary.nodeStep],
-    ['duration', summary.duration],
-  ].filter(([, value]) => value !== undefined && value !== null && value !== '');
-
-  if (details.length) {
-    console.log(`     ${details.map(([key, value]) => `${key}=${toSingleLine(value)}`).join(' | ')}`);
-  }
-}
-
 function printHumanOutput(result: PreprocessResult): void {
   console.log(`webhook/prod taskId=${result.query.taskId}`);
 
@@ -516,27 +417,10 @@ function printHumanOutput(result: PreprocessResult): void {
   }
 
   if (Object.keys(result.extractedIdentifiers).length > 0) {
-    console.log('\nExtracted identifiers');
-    for (const [key, value] of Object.entries(result.extractedIdentifiers)) {
-      console.log(`- ${key}: ${toSingleLine(value)}`);
-    }
+    printExtractedIdentifiers(result.extractedIdentifiers);
   }
 
-  if (result.stageHints.firstVisibleEvent || result.stageHints.lastVisibleEvent || result.stageHints.lastErrorEvent) {
-    console.log('\nStage hints');
-    if (result.stageHints.firstVisibleEvent) {
-      const item = result.stageHints.firstVisibleEvent;
-      console.log(`- first: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content].filter(Boolean).join(' | '))}`);
-    }
-    if (result.stageHints.lastVisibleEvent) {
-      const item = result.stageHints.lastVisibleEvent;
-      console.log(`- last: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content, item.status].filter(Boolean).join(' | '))}`);
-    }
-    if (result.stageHints.lastErrorEvent) {
-      const item = result.stageHints.lastErrorEvent;
-      console.log(`- last-error: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content, item.error].filter(Boolean).join(' | '))}`);
-    }
-  }
+  printStageHints(result.stageHints);
 
   for (const hit of result.hits) {
     console.log(`\n[${hit.source.alias || hit.source.name}] ${hit.count} hit(s)`);
@@ -549,7 +433,8 @@ async function main(): Promise<void> {
   const result = await fetchWebhook(args);
 
   if (args.json) {
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    const output = args.includeRaw ? result : stripRawFields(result);
+    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
     return;
   }
 

@@ -17,21 +17,27 @@ import {
   toSingleLine,
   tryParseJson,
 } from './lib';
+import {
+  buildStageHints as sharedBuildStageHints,
+  buildTimeline,
+  extractIdentifiers,
+  printExtractedIdentifiers,
+  printStageHints,
+  printSummary,
+  stripRawFields,
+} from './lib/shared';
 import { extractSignals, filterNoiseEvents } from './lib/signal-extractor';
 import { clusterLogs } from './lib/log-cluster';
 import { generateHints } from './lib/hint-generator';
 
 import type {
   FetchLogsArgs,
-  LogSummary,
   NormalizedEntry,
   PreprocessResult,
   ProjectConfig,
   QueryHit,
   QueryHint,
-  StageHints,
   SourceConfig,
-  TimelineEntry,
 } from './lib/types';
 
 const execFileAsync = promisify(execFile);
@@ -45,6 +51,7 @@ function parseArgs(argv: string[]): FetchLogsArgs {
     lines: 20,
     json: false,
     autoFallback: true,
+    includeRaw: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -69,6 +76,8 @@ function parseArgs(argv: string[]): FetchLogsArgs {
       out.json = true;
     } else if (cur === '--no-auto-fallback') {
       out.autoFallback = false;
+    } else if (cur === '--include-raw') {
+      out.includeRaw = true;
     }
   }
 
@@ -105,6 +114,7 @@ function normalizeSlsLog(entry: any, source: SourceConfig & { alias: string }): 
       hostName: entry.__source__,
       podName: entry._pod_name_,
       containerName: entry._container_name_,
+      ids: Array.isArray(extra.ids) ? extra.ids.map(String) : undefined,
     },
     raw: entry,
   };
@@ -139,6 +149,7 @@ function normalizeClsResult(result: any, source: SourceConfig & { alias: string 
       hostName: result.HostName,
       podName: tags.pod_name,
       containerName: tags.container_name,
+      ids: Array.isArray(extra.ids) ? extra.ids.map(String) : undefined,
     },
     raw: result,
   };
@@ -173,6 +184,7 @@ function normalizeTlsLog(entry: any, source: SourceConfig & { alias: string }): 
       hostName: contentMap.__path__ || contentMap._source || '',
       podName: contentMap._pod_name || contentMap.pod_name || '',
       containerName: contentMap._container_name || contentMap.container_name || '',
+      ids: Array.isArray(extra.ids) ? extra.ids.map(String) : undefined,
     },
     raw: entry,
   };
@@ -252,87 +264,6 @@ async function queryTlsSource(
   };
 }
 
-function extractIdentifiers(hits: QueryHit[]): Record<string, string> {
-  const identifiers: Record<string, string> = {};
-  for (const hit of hits) {
-    for (const entry of hit.body) {
-      const summary = entry.summary;
-      for (const key of ['traceId', 'taskId', 'requestId', 'uid'] as const) {
-        if (!identifiers[key] && summary[key]) {
-          identifiers[key] = summary[key];
-        }
-      }
-    }
-  }
-  return identifiers;
-}
-
-function toTimestamp(value: unknown): number {
-  if (value === undefined || value === null || value === '') {
-    return 0;
-  }
-  if (typeof value === 'number') {
-    return value > 1000000000000 ? value : value * 1000;
-  }
-  const numeric = Number(value);
-  if (Number.isFinite(numeric) && numeric > 0) {
-    return numeric > 1000000000000 ? numeric : numeric * 1000;
-  }
-  const parsed = Date.parse(String(value));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function buildTimeline(hits: QueryHit[]): TimelineEntry[] {
-  return hits
-    .flatMap((hit) => hit.body.map((entry) => ({
-      timestamp: toTimestamp(entry.summary.time),
-      time: entry.summary.time || '',
-      layer: entry.summary.layer || '',
-      source: entry.summary.sourceName || hit.source.alias || hit.source.name,
-      level: entry.summary.level || '',
-      event: entry.summary.event || '',
-      content: entry.summary.content || '',
-      status: entry.summary.status || '',
-      error: entry.summary.error || '',
-      traceId: entry.summary.traceId || '',
-      taskId: entry.summary.taskId || '',
-      requestId: entry.summary.requestId || '',
-      uid: entry.summary.uid || '',
-    })))
-    .sort((a, b) => b.timestamp - a.timestamp);
-}
-
-function buildStageHints(timeline: TimelineEntry[]): StageHints {
-  const first = timeline[timeline.length - 1] || null;
-  const last = timeline[0] || null;
-  const lastErrored = timeline.find((item) => item.error) || null;
-  return {
-    firstVisibleEvent: first ? {
-      time: first.time,
-      source: first.source,
-      layer: first.layer,
-      event: first.event,
-      content: first.content,
-    } : null,
-    lastVisibleEvent: last ? {
-      time: last.time,
-      source: last.source,
-      layer: last.layer,
-      event: last.event,
-      content: last.content,
-      status: last.status,
-    } : null,
-    lastErrorEvent: lastErrored ? {
-      time: lastErrored.time,
-      source: lastErrored.source,
-      layer: lastErrored.layer,
-      event: lastErrored.event,
-      content: lastErrored.content,
-      error: lastErrored.error,
-    } : null,
-  };
-}
-
 function buildQueryHints(
   extractedIds: Record<string, string>,
   args: FetchLogsArgs,
@@ -378,13 +309,14 @@ function buildPreprocessResult(
       layer: item.source.layer || '',
       error: item.error!,
     }));
-  const timeline = buildTimeline(matchedHits);
+  const allEntries = matchedHits.flatMap(h => h.body || []);
+  const timeline = buildTimeline(allEntries);
 
   const signalExtraction = extractSignals(matchedHits, projectConfig);
   const errorClusters = clusterLogs(matchedHits, 10);
   const analysisHints = generateHints(signalExtraction, errorClusters, projectConfig);
 
-  const extractedIds = extractIdentifiers(matchedHits);
+  const extractedIds = extractIdentifiers(allEntries);
 
   return {
     query: {
@@ -404,7 +336,7 @@ function buildPreprocessResult(
     matchedSourceCount: matchedHits.length,
     failedSourceCount: failedSources.length,
     extractedIdentifiers: extractedIds,
-    stageHints: buildStageHints(timeline),
+    stageHints: sharedBuildStageHints(timeline),
     signalExtraction,
     errorClusters,
     analysisHints,
@@ -468,33 +400,6 @@ async function queryWebhookProject(
     parsed.query.lines = args.lines;
   }
   return parsed;
-}
-
-function printSummary(summary: LogSummary, index: number): void {
-  const lead = [summary.time, summary.level, summary.event, summary.content]
-    .filter(Boolean)
-    .join(' | ');
-  console.log(`  ${index + 1}. ${lead}`);
-
-  const details = [
-    ['traceId', summary.traceId],
-    ['taskId', summary.taskId],
-    ['requestId', summary.requestId],
-    ['uid', summary.uid],
-    ['type', summary.type],
-    ['status', summary.status],
-    ['code', summary.code],
-    ['error', summary.error],
-    ['layer', summary.layer],
-    ['source', summary.sourceName],
-    ['host', summary.hostName],
-    ['pod', summary.podName],
-    ['container', summary.containerName],
-  ].filter(([, value]) => value !== undefined && value !== null && value !== '');
-
-  if (details.length) {
-    console.log(`     ${details.map(([key, value]) => `${key}=${toSingleLine(value)}`).join(' | ')}`);
-  }
 }
 
 function printHumanOutput(result: PreprocessResult): void {
@@ -566,27 +471,10 @@ function printHumanOutput(result: PreprocessResult): void {
   }
 
   if (Object.keys(result.extractedIdentifiers).length > 0) {
-    console.log('\nExtracted identifiers');
-    for (const [key, value] of Object.entries(result.extractedIdentifiers)) {
-      console.log(`- ${key}: ${toSingleLine(value)}`);
-    }
+    printExtractedIdentifiers(result.extractedIdentifiers);
   }
 
-  if (result.stageHints.firstVisibleEvent || result.stageHints.lastVisibleEvent || result.stageHints.lastErrorEvent) {
-    console.log('\nStage hints');
-    if (result.stageHints.firstVisibleEvent) {
-      const item = result.stageHints.firstVisibleEvent;
-      console.log(`- first: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content].filter(Boolean).join(' | '))}`);
-    }
-    if (result.stageHints.lastVisibleEvent) {
-      const item = result.stageHints.lastVisibleEvent;
-      console.log(`- last: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content, item.status].filter(Boolean).join(' | '))}`);
-    }
-    if (result.stageHints.lastErrorEvent) {
-      const item = result.stageHints.lastErrorEvent;
-      console.log(`- last-error: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content, item.error].filter(Boolean).join(' | '))}`);
-    }
-  }
+  printStageHints(result.stageHints);
 
   if (result.fallbackInfo) {
     console.log('\n=== Auto Fallback ===');
@@ -795,7 +683,8 @@ async function main(): Promise<void> {
   const result = buildPreprocessResult(primaryProjectConfig, args, hits);
 
   if (args.json) {
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    const output = args.includeRaw ? result : stripRawFields(result);
+    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
     return;
   }
 

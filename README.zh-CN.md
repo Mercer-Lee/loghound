@@ -34,7 +34,11 @@ cp config/projects.example.json config/projects.json
 - `taskPatterns`：`{type, regex}` 格式的 taskId 匹配规则
 - `multiEnvs`：设置后，单次 `--env` 查询会扩展到多个环境配置（如多地域生产环境）
 
-### 3. 配置拓扑
+### 3. 配置信号匹配规则
+
+编辑 `config/signal-patterns.json`，自定义哪些错误模式被归类为硬故障（如超时、网络错误）和信息级故障（如处理失败、回调失败）。文件已预填合理默认值，只有当你的服务产生不同的错误模式时才需要修改。
+
+### 4. 配置拓扑
 
 编辑 `references/call-graph.md`，描述你的服务拓扑、路由规则和升级路径。
 
@@ -43,6 +47,9 @@ cp config/projects.example.json config/projects.json
 ```bash
 # 查询云日志
 npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --hours 24
+
+# 查询时包含原始日志（默认 JSON 输出会省略 raw 以节省 token）
+npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ERROR" --json --include-raw
 
 # 查询 Webhook 工作流引擎
 npm run fetch-webhook -- --taskId xxx --json

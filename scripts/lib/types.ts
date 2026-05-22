@@ -71,6 +71,7 @@ export interface LogSummary {
   nodeStep?: number;
   duration?: string;
   index?: number;
+  ids?: string[];
 }
 
 export interface NormalizedEntry {
@@ -353,6 +354,7 @@ export interface FetchLogsArgs {
   lines: number;
   json: boolean;
   autoFallback: boolean;
+  includeRaw: boolean;
   _fallbackInfo?: FallbackInfo;
 }
 
@@ -362,6 +364,7 @@ export interface FetchWebhookArgs {
   errorApiUrl: string | undefined;
   timeoutMs: number;
   json: boolean;
+  includeRaw: boolean;
 }
 
 export interface FetchSqlArgs {

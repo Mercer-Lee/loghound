@@ -1,6 +1,3 @@
-import fs from 'fs';
-import path from 'path';
-
 import type {
   AnalysisHints,
   ErrorCluster,
@@ -8,21 +5,17 @@ import type {
   ProjectConfig,
   SignalExtraction,
 } from './types';
+import { readProjectsConfig } from './index';
 
 function loadProjectDownstream(): Record<string, string[]> {
-  try {
-    const file = path.join(__dirname, '..', '..', 'config', 'projects.json');
-    const projects = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, any>;
-    const downstream: Record<string, string[]> = {};
-    for (const [name, project] of Object.entries(projects)) {
-      if (project.downstream && Array.isArray(project.downstream)) {
-        downstream[name] = project.downstream;
-      }
+  const projects = readProjectsConfig();
+  const downstream: Record<string, string[]> = {};
+  for (const [name, project] of Object.entries(projects)) {
+    if (project.downstream && Array.isArray(project.downstream)) {
+      downstream[name] = project.downstream;
     }
-    return downstream;
-  } catch {
-    return {};
   }
+  return downstream;
 }
 
 export function generateHints(

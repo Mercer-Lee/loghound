@@ -17,15 +17,7 @@ import type {
   SubTask,
   SubTaskSummary,
 } from './types';
-
-function loadProjectConfig(): Record<string, any> {
-  try {
-    const file = path.join(__dirname, '..', '..', 'config', 'projects.json');
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return {};
-  }
-}
+import { readProjectsConfig } from './index';
 
 interface CompiledTaskPattern {
   type: string;
@@ -33,7 +25,7 @@ interface CompiledTaskPattern {
 }
 
 function buildTaskPatterns(): CompiledTaskPattern[] {
-  const projects = loadProjectConfig();
+  const projects = readProjectsConfig();
   const patterns: CompiledTaskPattern[] = [];
   for (const [, project] of Object.entries(projects)) {
     const proj = project as any;
@@ -285,7 +277,7 @@ function extractErrorMessageFromContent(content: string): string {
   return content.substring(0, 200);
 }
 
-const HARD_FAILURE_PATTERNS: Record<string, { category: string; subtype: string }> = {
+const DEFAULT_HARD_FAILURE_PATTERNS: Record<string, { category: string; subtype: string }> = {
   'ResultReview.NotPass': { category: 'REVIEW', subtype: 'CONTENT_VIOLATION' },
   'Task.RenderFailed': { category: 'RENDER', subtype: 'RENDER_ERROR' },
   'RenderFailed': { category: 'RENDER', subtype: 'RENDER_ERROR' },
@@ -302,7 +294,7 @@ const HARD_FAILURE_PATTERNS: Record<string, { category: string; subtype: string 
   'invalid media format': { category: 'MEDIA', subtype: 'INVALID_FORMAT' },
 };
 
-const INFO_FAILURE_PATTERNS: Record<string, { category: string; subtype: string; severity: string }> = {
+const DEFAULT_INFO_FAILURE_PATTERNS: Record<string, { category: string; subtype: string; severity: string }> = {
   'processing failed': { category: 'PROCESS', subtype: 'PROCESSING_FAILED', severity: 'HIGH' },
   'task failed': { category: 'PROCESS', subtype: 'TASK_FAILED', severity: 'HIGH' },
   'callback failed': { category: 'CALLBACK', subtype: 'CALLBACK_FAILED', severity: 'HIGH' },
@@ -312,6 +304,31 @@ const INFO_FAILURE_PATTERNS: Record<string, { category: string; subtype: string;
   'unsupported format': { category: 'PARAM', subtype: 'FORMAT_UNSUPPORTED', severity: 'HIGH' },
 };
 
+interface LoadedPatterns {
+  hardFailure: Record<string, { category: string; subtype: string }>;
+  infoFailure: Record<string, { category: string; subtype: string; severity: string }>;
+}
+
+let _patternsCache: LoadedPatterns | null = null;
+
+function loadSignalPatterns(): LoadedPatterns {
+  if (_patternsCache) return _patternsCache;
+  try {
+    const file = path.join(__dirname, '..', '..', 'config', 'signal-patterns.json');
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+    _patternsCache = {
+      hardFailure: config.hardFailurePatterns || DEFAULT_HARD_FAILURE_PATTERNS,
+      infoFailure: config.infoFailurePatterns || DEFAULT_INFO_FAILURE_PATTERNS,
+    };
+  } catch {
+    _patternsCache = {
+      hardFailure: DEFAULT_HARD_FAILURE_PATTERNS,
+      infoFailure: DEFAULT_INFO_FAILURE_PATTERNS,
+    };
+  }
+  return _patternsCache;
+}
+
 function extractHardFailures(entries: NormalizedEntry[]): HardFailure[] {
   const failures: HardFailure[] = [];
 
@@ -319,7 +336,7 @@ function extractHardFailures(entries: NormalizedEntry[]): HardFailure[] {
     const summary = entry.summary;
     const content = `${summary.code || ''} ${summary.error || ''} ${summary.content || ''}`.toLowerCase();
 
-    for (const [pattern, classification] of Object.entries(HARD_FAILURE_PATTERNS)) {
+    for (const [pattern, classification] of Object.entries(loadSignalPatterns().hardFailure) as [string, { category: string; subtype: string }][]) {
       if (content.includes(pattern.toLowerCase())) {
         failures.push({
           time: summary.time,
@@ -352,7 +369,7 @@ function extractInfoFailures(entries: NormalizedEntry[]): InfoFailure[] {
     const summary = entry.summary;
     const content = `${summary.content || ''} ${summary.error || ''} ${summary.code || ''}`;
 
-    for (const [pattern, classification] of Object.entries(INFO_FAILURE_PATTERNS)) {
+    for (const [pattern, classification] of Object.entries(loadSignalPatterns().infoFailure) as [string, { category: string; subtype: string; severity: string }][]) {
       if (content.toLowerCase().includes(pattern.toLowerCase())) {
         failures.push({
           time: summary.time,
@@ -442,7 +459,7 @@ function extractStateTransitions(entries: NormalizedEntry[]): StateTransition[] 
 }
 
 function extractCrossProjectMentions(entries: NormalizedEntry[], currentProject: string): CrossProjectMention[] {
-  const projects = loadProjectConfig();
+  const projects = readProjectsConfig();
   const projectKeywords = buildProjectKeywords(projects);
   const mentions: CrossProjectMention[] = [];
 
@@ -666,8 +683,9 @@ export function filterNoiseEvents(entries: NormalizedEntry[]): NormalizedEntry[]
 }
 
 export {
-  HARD_FAILURE_PATTERNS,
-  INFO_FAILURE_PATTERNS,
+  DEFAULT_HARD_FAILURE_PATTERNS as HARD_FAILURE_PATTERNS,
+  DEFAULT_INFO_FAILURE_PATTERNS as INFO_FAILURE_PATTERNS,
+  loadSignalPatterns,
   extractHardFailures,
   extractInfoFailures,
   extractStateTransitions,
