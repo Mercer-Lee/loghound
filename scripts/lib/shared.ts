@@ -47,33 +47,42 @@ export function buildStageHints(timeline: TimelineEntry[]): StageHints {
   const last = timeline[0] || null;
   const lastErrored = timeline.find((item) => item.error || item.status === 'failed') || null;
   return {
-    firstVisibleEvent: first ? {
-      time: first.time,
-      source: first.source,
-      layer: first.layer,
-      event: first.event,
-      content: first.content,
-    } : null,
-    lastVisibleEvent: last ? {
-      time: last.time,
-      source: last.source,
-      layer: last.layer,
-      event: last.event,
-      content: last.content,
-      status: last.status,
-    } : null,
-    lastErrorEvent: lastErrored ? {
-      time: lastErrored.time,
-      source: lastErrored.source,
-      layer: lastErrored.layer,
-      event: lastErrored.event,
-      content: lastErrored.content,
-      error: lastErrored.error || lastErrored.status,
-    } : null,
+    firstVisibleEvent: first
+      ? {
+          time: first.time,
+          source: first.source,
+          layer: first.layer,
+          event: first.event,
+          content: first.content,
+        }
+      : null,
+    lastVisibleEvent: last
+      ? {
+          time: last.time,
+          source: last.source,
+          layer: last.layer,
+          event: last.event,
+          content: last.content,
+          status: last.status,
+        }
+      : null,
+    lastErrorEvent: lastErrored
+      ? {
+          time: lastErrored.time,
+          source: lastErrored.source,
+          layer: lastErrored.layer,
+          event: lastErrored.event,
+          content: lastErrored.content,
+          error: lastErrored.error || lastErrored.status,
+        }
+      : null,
   };
 }
 
-export function extractIdentifiers(entries: NormalizedEntry[], fallbacks?: Record<string, string>): Record<string, string> {
+export function extractIdentifiers(
+  entries: NormalizedEntry[],
+  fallbacks?: Record<string, string>,
+): Record<string, string> {
   const identifiers: Record<string, string> = fallbacks ? { ...fallbacks } : {};
   for (const entry of entries) {
     const summary = entry.summary || {};
@@ -87,9 +96,7 @@ export function extractIdentifiers(entries: NormalizedEntry[], fallbacks?: Recor
 }
 
 export function printSummary(summary: any, index: number): void {
-  const lead = [summary.time, summary.level, summary.event, summary.content]
-    .filter(Boolean)
-    .join(' | ');
+  const lead = [summary.time, summary.level, summary.event, summary.content].filter(Boolean).join(' | ');
   console.log(`  ${index + 1}. ${lead || '(empty entry)'}`);
 
   const details = [
@@ -124,15 +131,21 @@ export function printStageHints(stageHints: StageHints): void {
   console.log('\nStage hints');
   if (stageHints.firstVisibleEvent) {
     const item = stageHints.firstVisibleEvent;
-    console.log(`- first: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content].filter(Boolean).join(' | '))}`);
+    console.log(
+      `- first: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content].filter(Boolean).join(' | '))}`,
+    );
   }
   if (stageHints.lastVisibleEvent) {
     const item = stageHints.lastVisibleEvent;
-    console.log(`- last: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content, item.status].filter(Boolean).join(' | '))}`);
+    console.log(
+      `- last: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content, item.status].filter(Boolean).join(' | '))}`,
+    );
   }
   if (stageHints.lastErrorEvent) {
     const item = stageHints.lastErrorEvent;
-    console.log(`- last-error: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content, item.error].filter(Boolean).join(' | '))}`);
+    console.log(
+      `- last-error: ${toSingleLine([item.time, item.source, item.layer, item.event || item.content, item.error].filter(Boolean).join(' | '))}`,
+    );
   }
 }
 

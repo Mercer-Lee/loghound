@@ -5,7 +5,7 @@ import { promisify } from 'util';
 import path from 'path';
 import pLimit from 'p-limit';
 
-const { GetLogsRequest } = require('@alicloud/sls20201230');
+import { GetLogsRequest } from '@alicloud/sls20201230';
 
 import {
   buildClsClient,
@@ -121,7 +121,7 @@ function normalizeSlsLog(entry: any, source: SourceConfig & { alias: string }): 
 }
 
 function normalizeClsResult(result: any, source: SourceConfig & { alias: string }): NormalizedEntry {
-  const parsed = tryParseJson(result.LogJson) as any || {};
+  const parsed = (tryParseJson(result.LogJson) as any) || {};
   const embedded = extractEmbeddedJson(parsed.__CONTENT__) as any;
   const extra = embedded && embedded.extra && typeof embedded.extra === 'object' ? embedded.extra : {};
   const customExtra = extra.customExtra && typeof extra.customExtra === 'object' ? extra.customExtra : {};
@@ -133,14 +133,30 @@ function normalizeClsResult(result: any, source: SourceConfig & { alias: string 
       level: embedded?.level || parsed.level || parsed.Level,
       event: embedded?.event || parsed.event || parsed.action || parsed.module,
       content: embedded?.content || parsed.content || parsed.message || parsed.msg || result.RawLog || '',
-      traceId: embedded?.traceId || parsed.traceId || parsed.trace_id || parsed.requestId || extra.traceId || extra.requestId,
-      taskId: embedded?.taskId || extra.taskId || parsed.taskId || parsed.task_id || extra.renderTaskId || customExtra.renderTaskId || parsed.jobId || extra.workTaskId,
+      traceId:
+        embedded?.traceId || parsed.traceId || parsed.trace_id || parsed.requestId || extra.traceId || extra.requestId,
+      taskId:
+        embedded?.taskId ||
+        extra.taskId ||
+        parsed.taskId ||
+        parsed.task_id ||
+        extra.renderTaskId ||
+        customExtra.renderTaskId ||
+        parsed.jobId ||
+        extra.workTaskId,
       requestId: embedded?.requestId || parsed.requestId || extra.requestId,
       uid: embedded?.uid || extra.userId || parsed.uid || parsed.userId || parsed.user_id,
-      userNo: extra.userNo || extra.appUserNo || parsed.userNo || parsed.appUserNo || customExtra.userNo || customExtra.appUserNo,
+      userNo:
+        extra.userNo ||
+        extra.appUserNo ||
+        parsed.userNo ||
+        parsed.appUserNo ||
+        customExtra.userNo ||
+        customExtra.appUserNo,
       status: embedded?.status || extra.status || parsed.status || parsed.state,
       type: extra.type || embedded?.type,
-      prompt: extra.prompt || extra.text || embedded?.prompt || embedded?.text || customExtra.prompt || customExtra.text,
+      prompt:
+        extra.prompt || extra.text || embedded?.prompt || embedded?.text || customExtra.prompt || customExtra.text,
       code: extra.errorCode || embedded?.code || parsed.code || parsed.errCode,
       error: extra.errorMessage || embedded?.error || parsed.error || parsed.err || parsed.errMsg || parsed.message,
       layer: source.layer,
@@ -160,7 +176,8 @@ function normalizeTlsLog(entry: any, source: SourceConfig & { alias: string }): 
     ? Object.fromEntries(entry.Contents.map((item: any) => [item.Key, item.Value]))
     : entry.Contents || {};
   const parsedMessage = tryParseJson(contentMap.content || contentMap.message || contentMap.msg || '') as any;
-  const embedded = parsedMessage || extractEmbeddedJson(contentMap.content || contentMap.message || contentMap.msg || '') as any;
+  const embedded =
+    parsedMessage || (extractEmbeddedJson(contentMap.content || contentMap.message || contentMap.msg || '') as any);
   const extra = embedded && embedded.extra && typeof embedded.extra === 'object' ? embedded.extra : {};
   const customExtra = extra.customExtra && typeof extra.customExtra === 'object' ? extra.customExtra : {};
 
@@ -171,7 +188,15 @@ function normalizeTlsLog(entry: any, source: SourceConfig & { alias: string }): 
       event: embedded?.event || contentMap.event || contentMap.action || contentMap.module || '',
       content: embedded?.content || contentMap.content || contentMap.message || contentMap.msg || '',
       traceId: embedded?.traceId || contentMap.traceId || contentMap.trace_id || extra.traceId || extra.requestId || '',
-      taskId: embedded?.taskId || contentMap.taskId || contentMap.task_id || extra.taskId || extra.workTaskId || extra.renderTaskId || customExtra.renderTaskId || '',
+      taskId:
+        embedded?.taskId ||
+        contentMap.taskId ||
+        contentMap.task_id ||
+        extra.taskId ||
+        extra.workTaskId ||
+        extra.renderTaskId ||
+        customExtra.renderTaskId ||
+        '',
       requestId: embedded?.requestId || contentMap.requestId || extra.requestId || '',
       uid: embedded?.uid || contentMap.uid || contentMap.userId || extra.uid || extra.userId || '',
       status: embedded?.status || contentMap.status || extra.status || contentMap.state || '',
@@ -237,6 +262,24 @@ async function queryClsSource(
   };
 }
 
+const QUERY_TIMEOUT_MS = 30_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Query timed out after ${ms}ms`)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 async function queryTlsSource(
   client: any,
   source: SourceConfig & { alias: string },
@@ -245,14 +288,17 @@ async function queryTlsSource(
   to: number,
   limit: number,
 ): Promise<QueryHit> {
-  const res = await client.SearchLogs({
-    TopicId: source.name,
-    Query: query,
-    StartTime: from,
-    EndTime: to,
-    Limit: limit,
-    Sort: 'desc',
-  });
+  const res: any = await withTimeout(
+    client.SearchLogs({
+      TopicId: source.name,
+      Query: query,
+      StartTime: from,
+      EndTime: to,
+      Limit: limit,
+      Sort: 'desc',
+    }),
+    QUERY_TIMEOUT_MS,
+  );
   const body = Array.isArray(res.Logs) ? res.Logs.map((item: any) => normalizeTlsLog(item, source)) : [];
   return {
     source,
@@ -285,7 +331,10 @@ function buildQueryHints(
   }
 
   if (signalExtraction && signalExtraction.subTasks && signalExtraction.subTasks.failed.length > 0) {
-    const failedIds = signalExtraction.subTasks.failed.slice(0, 3).map((t: any) => t.id).join(', ');
+    const failedIds = signalExtraction.subTasks.failed
+      .slice(0, 3)
+      .map((t: any) => t.id)
+      .join(', ');
     hints.push({
       type: 'failedPathPriority',
       message: `Found ${signalExtraction.subTasks.failed.length} failed sub-tasks, prioritize: ${failedIds}`,
@@ -309,7 +358,7 @@ function buildPreprocessResult(
       layer: item.source.layer || '',
       error: item.error!,
     }));
-  const allEntries = matchedHits.flatMap(h => h.body || []);
+  const allEntries = matchedHits.flatMap((h) => h.body || []);
   const timeline = buildTimeline(allEntries);
 
   const signalExtraction = extractSignals(matchedHits, projectConfig);
@@ -375,18 +424,10 @@ function tagProjectConfigSources(
   };
 }
 
-async function queryWebhookProject(
-  projectConfig: any,
-  args: FetchLogsArgs,
-): Promise<PreprocessResult> {
+async function queryWebhookProject(projectConfig: any, args: FetchLogsArgs): Promise<PreprocessResult> {
   const tsxBin = path.resolve(__dirname, '..', 'node_modules', '.bin', 'tsx');
   const scriptPath = path.join(__dirname, 'fetch-webhook.ts');
-  const { stdout } = await execFileAsync(tsxBin, [
-    scriptPath,
-    '--taskId',
-    args.query,
-    '--json',
-  ], {
+  const { stdout } = await execFileAsync(tsxBin, [scriptPath, '--taskId', args.query, '--json'], {
     env: process.env,
     maxBuffer: 10 * 1024 * 1024,
   });
@@ -408,7 +449,9 @@ function printHumanOutput(result: PreprocessResult): void {
   if (!result.hits.length) {
     console.log('No matching logs found.');
     if (result.fallbackInfo) {
-      console.log(`\nAuto fallback attempted: "${result.fallbackInfo.originalQuery}" -> "${result.fallbackInfo.fallbackQuery}" (still 0 hits)`);
+      console.log(
+        `\nAuto fallback attempted: "${result.fallbackInfo.originalQuery}" -> "${result.fallbackInfo.fallbackQuery}" (still 0 hits)`,
+      );
     }
     if (result.sourceErrors.length > 0) {
       console.log('\nSource errors');
@@ -479,7 +522,9 @@ function printHumanOutput(result: PreprocessResult): void {
   if (result.fallbackInfo) {
     console.log('\n=== Auto Fallback ===');
     console.log(`Original query: "${result.fallbackInfo.originalQuery}" -> 0 hits`);
-    console.log(`Fallback query: "${result.fallbackInfo.fallbackQuery}" -> ${result.hits.reduce((s, h) => s + h.count, 0)} hits`);
+    console.log(
+      `Fallback query: "${result.fallbackInfo.fallbackQuery}" -> ${result.hits.reduce((s, h) => s + h.count, 0)} hits`,
+    );
   }
 
   if (result.queryHints && result.queryHints.length > 0) {
@@ -489,12 +534,18 @@ function printHumanOutput(result: PreprocessResult): void {
     }
   }
 
-  if (result.signalExtraction && result.signalExtraction.errorStacks && result.signalExtraction.errorStacks.length > 0) {
+  if (
+    result.signalExtraction &&
+    result.signalExtraction.errorStacks &&
+    result.signalExtraction.errorStacks.length > 0
+  ) {
     console.log('\n=== Error Stacks ===');
     for (const stack of result.signalExtraction.errorStacks.slice(0, 3)) {
       console.log(`- ${stack.message}`);
       if (stack.topFrame) {
-        console.log(`  at ${stack.topFrame.function} (${stack.topFrame.file}:${stack.topFrame.line}:${stack.topFrame.column})`);
+        console.log(
+          `  at ${stack.topFrame.function} (${stack.topFrame.file}:${stack.topFrame.line}:${stack.topFrame.column})`,
+        );
       }
     }
   }
@@ -503,7 +554,9 @@ function printHumanOutput(result: PreprocessResult): void {
     const subTasks = result.signalExtraction.subTasks;
     console.log(`\n=== Sub Tasks (${subTasks.summary}) ===`);
     for (const task of subTasks.failed.slice(0, 5)) {
-      console.log(`[FAIL] ${task.id} (${task.type}) - ${task.error ? toSingleLine(task.error).substring(0, 100) : 'failed'}`);
+      console.log(
+        `[FAIL] ${task.id} (${task.type}) - ${task.error ? toSingleLine(task.error).substring(0, 100) : 'failed'}`,
+      );
     }
     for (const task of subTasks.processing.slice(0, 3)) {
       console.log(`[PROC] ${task.id} (${task.type}) - processing`);
@@ -522,12 +575,14 @@ function printHumanOutput(result: PreprocessResult): void {
   }
 
   if (result.hits.length > 0) {
-    const allEntries = result.hits.flatMap(h => h.body || []);
+    const allEntries = result.hits.flatMap((h) => h.body || []);
     const filteredEntries = filterNoiseEvents(allEntries);
     const noiseCount = allEntries.length - filteredEntries.length;
     if (noiseCount > 0) {
       console.log(`\n=== Noise Filter ===`);
-      console.log(`Total: ${allEntries.length} entries | Relevant: ${filteredEntries.length} | Filtered: ${noiseCount} noise entries`);
+      console.log(
+        `Total: ${allEntries.length} entries | Relevant: ${filteredEntries.length} | Filtered: ${noiseCount} noise entries`,
+      );
     }
   }
 

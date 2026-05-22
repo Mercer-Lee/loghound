@@ -17,14 +17,12 @@ function generateSignature(entry: NormalizedEntry): string {
 }
 
 function selectRepresentative(cluster: NormalizedEntry[]): NormalizedEntry {
-  const withIds = cluster.filter(e =>
-    e.summary.traceId || e.summary.taskId,
-  );
+  const withIds = cluster.filter((e) => e.summary.traceId || e.summary.taskId);
 
   if (withIds.length > 0) {
     return withIds.sort((a, b) => {
-      const timeA = new Date(b.summary.time as string || 0).getTime();
-      const timeB = new Date(a.summary.time as string || 0).getTime();
+      const timeA = new Date((b.summary.time as string) || 0).getTime();
+      const timeB = new Date((a.summary.time as string) || 0).getTime();
       return timeA - timeB;
     })[0];
   }
@@ -36,7 +34,7 @@ export function clusterLogs(hits: QueryHit[], maxClusters = 10): ErrorCluster[] 
   const clusters = new Map<string, { signature: string; entries: NormalizedEntry[]; count: number }>();
 
   for (const hit of hits) {
-    for (const entry of (hit.body || [])) {
+    for (const entry of hit.body || []) {
       const signature = generateSignature(entry);
 
       if (!clusters.has(signature)) {
@@ -63,13 +61,13 @@ export function clusterLogs(hits: QueryHit[], maxClusters = 10): ErrorCluster[] 
     })
     .slice(0, maxClusters);
 
-  return sortedClusters.map(cluster => {
+  return sortedClusters.map((cluster) => {
     const representative = selectRepresentative(cluster.entries);
     const summary = representative.summary;
 
     const times = cluster.entries
-      .map(e => new Date(e.summary.time as string || 0).getTime())
-      .filter(t => !isNaN(t));
+      .map((e) => new Date((e.summary.time as string) || 0).getTime())
+      .filter((t) => !isNaN(t));
 
     return {
       pattern: cluster.signature,
@@ -88,12 +86,15 @@ export function clusterLogs(hits: QueryHit[], maxClusters = 10): ErrorCluster[] 
         traceId: summary.traceId,
         taskId: summary.taskId,
       },
-      samples: cluster.count > 1 ? cluster.entries.slice(0, 3).map(e => ({
-        time: e.summary.time,
-        source: e.summary.sourceName,
-        traceId: e.summary.traceId,
-        taskId: e.summary.taskId,
-      })) : undefined,
+      samples:
+        cluster.count > 1
+          ? cluster.entries.slice(0, 3).map((e) => ({
+              time: e.summary.time,
+              source: e.summary.sourceName,
+              traceId: e.summary.traceId,
+              taskId: e.summary.taskId,
+            }))
+          : undefined,
     };
   });
 }
@@ -108,9 +109,7 @@ function inferCategory(signature: string): string {
 }
 
 export function getCriticalClusters(clusters: ErrorCluster[], maxCount = 5): ErrorCluster[] {
-  return clusters
-    .filter(c => c.category === 'ERROR' || c.count >= 3)
-    .slice(0, maxCount);
+  return clusters.filter((c) => c.category === 'ERROR' || c.count >= 3).slice(0, maxCount);
 }
 
 export { generateSignature };

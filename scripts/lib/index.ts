@@ -3,10 +3,10 @@ import path from 'path';
 
 import type { ProjectConfig, ProjectDefinition } from './types';
 
-const tencentcloud = require('tencentcloud-sdk-nodejs');
-const sls = require('@alicloud/sls20201230');
-const OpenApi = require('@alicloud/openapi-client');
-const { tlsOpenapi } = require('@volcengine/openapi');
+import * as tencentcloud from 'tencentcloud-sdk-nodejs';
+import * as sls from '@alicloud/sls20201230';
+import { $OpenApiUtil } from '@alicloud/openapi-core';
+import { tlsOpenapi } from '@volcengine/openapi';
 
 const SlsClient = sls.default;
 const ClsClient = tencentcloud.cls.v20201016.Client;
@@ -67,7 +67,9 @@ export function buildSlsClient(region: string) {
     throw new Error('Missing SLS_ACCESS_KEY_ID or SLS_ACCESS_KEY_SECRET');
   }
   const endpoint = SLS_REGION_ENDPOINTS[region] || region;
-  return new SlsClient(new OpenApi.Config({ accessKeyId, accessKeySecret, endpoint }));
+  return new SlsClient(
+    new $OpenApiUtil.Config({ accessKeyId, accessKeySecret, endpoint, readTimeout: 30_000, connectTimeout: 10_000 }),
+  );
 }
 
 export function buildClsClient(region: string) {
@@ -79,7 +81,7 @@ export function buildClsClient(region: string) {
   return new ClsClient({
     credential: { secretId, secretKey },
     region,
-    profile: { httpProfile: { endpoint: 'cls.tencentcloudapi.com' } },
+    profile: { httpProfile: { endpoint: 'cls.tencentcloudapi.com', reqTimeout: 30 } },
   });
 }
 
@@ -109,10 +111,7 @@ function quoteTerm(value: string | number | undefined): string {
   return String(value || '').trim();
 }
 
-export function buildKeywordQueries(
-  order: string[] | undefined,
-  termsByKey: Record<string, string>,
-): string[] {
+export function buildKeywordQueries(order: string[] | undefined, termsByKey: Record<string, string>): string[] {
   const queries: string[] = [];
   const seen = new Set<string>();
 
@@ -124,7 +123,10 @@ export function buildKeywordQueries(
     if (/\b(traceId|taskId|requestId|uid|userId|renderTaskId)\b/.test(query)) {
       continue;
     }
-    query = query.replace(/\band\b/gi, 'AND').replace(/\bor\b/gi, 'OR').replace(/\bnot\b/gi, 'NOT');
+    query = query
+      .replace(/\band\b/gi, 'AND')
+      .replace(/\bor\b/gi, 'OR')
+      .replace(/\bnot\b/gi, 'NOT');
     query = query.replace(/\s+/g, ' ').trim();
     if (!query || seen.has(query)) {
       continue;

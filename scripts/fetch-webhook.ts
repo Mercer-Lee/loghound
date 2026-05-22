@@ -155,7 +155,13 @@ function parseTimelineReport(report: unknown, payload: any, fallbackTaskId: stri
   while ((match = nodePattern.exec(report)) !== null) {
     const [, step, nodeStatusText, duration, nodeName, output] = match;
     const fields = parseNodeOutput(output.trim());
-    const status = fields.status || (nodeStatusText.includes('failed') || nodeStatusText.includes('失败') ? 'failed' : nodeStatusText.includes('success') || nodeStatusText.includes('成功') ? 'success' : '');
+    const status =
+      fields.status ||
+      (nodeStatusText.includes('failed') || nodeStatusText.includes('失败')
+        ? 'failed'
+        : nodeStatusText.includes('success') || nodeStatusText.includes('成功')
+          ? 'success'
+          : '');
     const code = fields.code || '';
     const error = fields.message || fields.error || (status === 'failed' ? output.trim() : '');
     const taskId = fields.taskId || fallbackTaskId;
@@ -241,7 +247,15 @@ function normalizeGenericRecord(record: any, index: number, fallbackTaskId: stri
   const time = findFirstValue(record, ['time', 'timestamp', 'createdAt', 'createTime', 'updatedAt', 'updateTime']);
   const level = findFirstValue(record, ['level', 'logLevel', 'severity']);
   const event = findFirstValue(record, ['event', 'action', 'node', 'nodeName', 'step', 'workflowNode']);
-  const content = findFirstValue(record, ['content', 'message', 'msg', 'detail', 'errorMessage', 'reason', 'description']);
+  const content = findFirstValue(record, [
+    'content',
+    'message',
+    'msg',
+    'detail',
+    'errorMessage',
+    'reason',
+    'description',
+  ]);
   const traceId = findFirstValue(record, ['traceId', 'trace_id', 'requestId', 'request_id']);
   const taskId = findFirstValue(record, ['taskId', 'task_id', 'id']) || fallbackTaskId;
   const uid = findFirstValue(record, ['uid', 'userId', 'user_id']);
@@ -291,7 +305,11 @@ function normalizeRecord(record: any, index: number, fallbackTaskId: string): No
   return normalizeGenericRecord(record, index, fallbackTaskId);
 }
 
-function buildResult(args: FetchWebhookArgs, payload: any, meta: { apiUrl?: string; route?: string } = {}): PreprocessResult {
+function buildResult(
+  args: FetchWebhookArgs,
+  payload: any,
+  meta: { apiUrl?: string; route?: string } = {},
+): PreprocessResult {
   const records = findRecords(payload, args.taskId);
   const hits = records.map((record: any, index: number) => normalizeRecord(record, index, args.taskId));
   const timeline = buildTimeline(hits);
@@ -328,8 +346,23 @@ function buildResult(args: FetchWebhookArgs, payload: any, meta: { apiUrl?: stri
       stateTransitions: [],
       crossProjectMentions: [],
       errorStacks: [],
-      subTasks: { total: 0, failed: [], completed: [], processing: [], unknown: [], summary: '0 completed / 0 failed / 0 processing / 0 unknown' },
-      errorClassification: { category: 'UNKNOWN', subcategory: null, confidence: 'low', message: null, shouldQueryDownstream: false, downstreamTargets: [], action: 'Manual analysis required' },
+      subTasks: {
+        total: 0,
+        failed: [],
+        completed: [],
+        processing: [],
+        unknown: [],
+        summary: '0 completed / 0 failed / 0 processing / 0 unknown',
+      },
+      errorClassification: {
+        category: 'UNKNOWN',
+        subcategory: null,
+        confidence: 'low',
+        message: null,
+        shouldQueryDownstream: false,
+        downstreamTargets: [],
+        action: 'Manual analysis required',
+      },
       meta: { totalEntries: hits.length, project: 'webhook', extractedAt: new Date().toISOString() },
     },
     errorClusters: [],
@@ -348,12 +381,17 @@ function buildResult(args: FetchWebhookArgs, payload: any, meta: { apiUrl?: stri
     queryHints: [],
     timeline,
     sourceErrors: [],
-    hits: hits.length > 0 ? [{
-      source: { name: 'webhook-workflow', alias: 'webhook-workflow', layer: 'workflow' },
-      query: args.taskId,
-      count: hits.length,
-      body: hits,
-    }] : [],
+    hits:
+      hits.length > 0
+        ? [
+            {
+              source: { name: 'webhook-workflow', alias: 'webhook-workflow', layer: 'workflow' },
+              query: args.taskId,
+              count: hits.length,
+              body: hits,
+            },
+          ]
+        : [],
     rawResponse: payload,
   };
 }
@@ -387,7 +425,9 @@ async function requestWebhook(apiUrl: string, taskId: string, token: string, tim
 }
 
 function hasUsableHits(result: PreprocessResult): boolean {
-  return Boolean(result && Array.isArray(result.hits) && result.hits.length > 0 && result.hits.some((hit) => hit.count > 0));
+  return Boolean(
+    result && Array.isArray(result.hits) && result.hits.length > 0 && result.hits.some((hit) => hit.count > 0),
+  );
 }
 
 async function fetchWebhook(args: FetchWebhookArgs): Promise<PreprocessResult> {

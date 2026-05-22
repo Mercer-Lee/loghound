@@ -70,7 +70,10 @@ async function fetchMongo(args: FetchMongoArgs): Promise<LookupResult> {
   }
 
   const returnFields = args.returnFields
-    ? args.returnFields.split(',').map(f => f.trim()).filter(Boolean)
+    ? args.returnFields
+        .split(',')
+        .map((f) => f.trim())
+        .filter(Boolean)
     : [];
   const projection: Record<string, 1> = {};
   for (const field of returnFields) {
@@ -92,12 +95,10 @@ async function fetchMongo(args: FetchMongoArgs): Promise<LookupResult> {
       queryValue = Number(args.query);
     }
 
-    const query = args.lookupField === '_id'
-      ? { _id: new ObjectId(args.query) }
-      : { [args.lookupField]: queryValue };
+    const query = args.lookupField === '_id' ? { _id: new ObjectId(args.query) } : { [args.lookupField]: queryValue };
 
     const opts = returnFields.length > 0 ? { projection } : {};
-    const doc = await collection.findOne(query, opts) as any;
+    const doc = (await collection.findOne(query, opts)) as any;
 
     if (!doc) {
       return {
@@ -112,9 +113,10 @@ async function fetchMongo(args: FetchMongoArgs): Promise<LookupResult> {
       lookupValue: String(doc[args.lookupField] || args.query),
     };
 
-    const entries = returnFields.length > 0
-      ? returnFields.filter(f => doc[f] !== undefined).map(f => [f, doc[f]])
-      : Object.entries(doc).filter(([k]) => k !== args.lookupField);
+    const entries =
+      returnFields.length > 0
+        ? returnFields.filter((f) => doc[f] !== undefined).map((f) => [f, doc[f]])
+        : Object.entries(doc).filter(([k]) => k !== args.lookupField);
 
     for (const [key, value] of entries) {
       result[key] = value;
