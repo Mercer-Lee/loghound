@@ -32,7 +32,7 @@ Before extracting identifiers, **determine user intent and problem type**:
 **Identifier priority**: `traceId`/`requestId` > `taskId` > `uid`/`userId` > user-facing ID
 
 **Identifier normalization**:
-- **User-facing IDs** (e.g. account numbers): convert to internal uid first via `npm run fetch-uid -- --userNo <id> --json`
+- **User-facing IDs** (e.g. account numbers): convert to internal ID first via `npm run fetch-mongo -- --query <id> --collection <name> --lookup-field <field> --json` (MongoDB) or `npm run fetch-sql -- --query <id> --table <name> --lookup-field <field> --json` (SQL)
 - **Workflow task IDs**: If format is `task_xxx`, strip `task_` prefix before querying
 - **Webhook query limitation**: Webhook queries only support taskId, not uid. If the task characteristics point to a webhook-based project but no taskId is provided, ask for it
 
@@ -66,7 +66,7 @@ Use the primary identifier provided by the user and the preferred project determ
 - User-described symptoms contradict log status
 
 **Execution steps**:
-1. Confirm uid (obtained via fetch-uid)
+1. Confirm uid (obtained via fetch-mongo)
 2. Time window: default 24 hours, expandable to 48 hours
 3. Determine entry-point project based on user source
 4. Query downstream projects in parallel
@@ -132,7 +132,8 @@ Use `scripts/fetch-logs.ts`.
 cd skills/loghound
 npm run fetch-logs -- --project my-service --query 'someTaskId AND ERROR' --env prod --json
 npm run fetch-webhook -- --taskId xxx --json
-npm run fetch-uid -- --userNo 12345 --json
+npm run fetch-mongo -- --query 12345 --collection MUser --lookup-field userNo --json
+npm run fetch-sql -- --query someValue --table my_table --lookup-field id --json
 ```
 
 ## Constraints

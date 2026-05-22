@@ -4,7 +4,7 @@
 
 Production incident investigation tool — multi-cloud log aggregation, signal extraction, and AI-driven root cause analysis.
 
-Queries Alibaba Cloud SLS, Tencent Cloud CLS, Volcengine TLS, webhook-based workflow engines, and user identity stores, then feeds normalized results into AI-driven root cause analysis.
+Queries Alibaba Cloud SLS, Tencent Cloud CLS, Volcengine TLS, webhook-based workflow engines, and databases (MongoDB, SQL), then feeds normalized results into AI-driven root cause analysis.
 
 ## Setup
 
@@ -47,11 +47,14 @@ npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ER
 # Query webhook-based workflow engine
 npm run fetch-webhook -- --taskId xxx --json
 
-# Look up user ID (production)
-npm run fetch-uid -- --userNo 12345 --json
+# Look up record from MongoDB
+npm run fetch-mongo -- --query 12345 --collection myCollection --lookup-field userNo --json
 
-# Look up user ID (test environment)
-npm run fetch-uid -- --userNo 12345 --env test --json
+# Look up record from MongoDB (test environment)
+npm run fetch-mongo -- --query 12345 --env test --json
+
+# Look up record from SQL database
+npm run fetch-sql -- --query someValue --json
 ```
 
 ## Architecture
@@ -62,7 +65,7 @@ User report (ID + symptoms)
   ▼
 ┌─────────────────────────────────────────────┐
 │  Script Layer                                │
-│  fetch-logs / fetch-webhook / fetch-uid      │
+│  fetch-logs / fetch-webhook / fetch-mongo      │
 │  ├─ Query log sources in parallel            │
 │  ├─ Normalize to unified schema              │
 │  ├─ Extract signals (hard failures, errors)  │
@@ -103,22 +106,18 @@ User report (ID + symptoms)
 
 ### MongoDB
 
-`fetch-uid` supports `--env prod|test` to select different database configs.
+`fetch-mongo` connects via env vars; collection, lookup field, and return fields are passed per query via CLI flags.
 
 | Variable | Purpose |
 |----------|---------|
 | `MONGO_URI` | Production MongoDB connection string |
-| `MONGO_DB` | Database name |
-| `MONGO_COLLECTION` | Collection name |
-| `MONGO_LOOKUP_FIELD` | Field to match against (default: `userNo`, use `_id` for ObjectId lookup) |
-| `MONGO_RETURN_FIELDS` | Fields to return (comma-separated) |
+| `MONGO_DB` | Production database name |
 | `TEST_MONGO_URI` | Test environment MongoDB connection string |
 | `TEST_MONGO_DB` | Test environment database name |
-| `TEST_MONGO_COLLECTION` | Test environment collection name |
-| `TEST_MONGO_LOOKUP_FIELD` | Test environment lookup field |
-| `TEST_MONGO_RETURN_FIELDS` | Test environment return fields |
 
-### SQL (reserved)
+### SQL
+
+`fetch-sql` connects via env vars; table, lookup field, and return fields are passed per query via CLI flags.
 
 | Variable | Purpose |
 |----------|---------|

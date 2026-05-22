@@ -179,7 +179,7 @@ These are stages or ownership judgments, not final root causes, unless the speci
 
 When querying by user-provided identifier yields no hits or status contradictions:
 
-1. Extract uid (via `npm run fetch-uid -- --userNo <id> --json`)
+1. Extract uid (via `npm run fetch-mongo -- --query <id> --json`)
 2. Query that uid's ERROR/WARN level logs in the last 24 hours
 3. Identify the user's most recent actual failed task and failure reason
 4. Confirm with user: is this the task they're reporting about?

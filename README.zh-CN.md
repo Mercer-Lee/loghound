@@ -47,11 +47,14 @@ npm run fetch-logs -- --project my-service --env prod --query "someTaskId AND ER
 # 查询 Webhook 工作流引擎
 npm run fetch-webhook -- --taskId xxx --json
 
-# 查询用户 ID（生产环境）
-npm run fetch-uid -- --userNo 12345 --json
+# 查询 MongoDB 记录
+npm run fetch-mongo -- --query 12345 --collection myCollection --lookup-field userNo --json
 
-# 查询用户 ID（测试环境）
-npm run fetch-uid -- --userNo 12345 --env test --json
+# 查询 MongoDB 记录（测试环境）
+npm run fetch-mongo -- --query 12345 --env test --json
+
+# 查询 SQL 数据库
+npm run fetch-sql -- --query someValue --json
 ```
 
 ## 架构
@@ -62,7 +65,7 @@ npm run fetch-uid -- --userNo 12345 --env test --json
   ▼
 ┌─────────────────────────────────────────────┐
 │  脚本层                                      │
-│  fetch-logs / fetch-webhook / fetch-uid      │
+│  fetch-logs / fetch-webhook / fetch-mongo      │
 │  ├─ 并行查询日志源                            │
 │  ├─ 标准化为统一格式                          │
 │  ├─ 提取信号（硬故障、错误）                   │
@@ -103,22 +106,18 @@ npm run fetch-uid -- --userNo 12345 --env test --json
 
 ### MongoDB
 
-`fetch-uid` 支持 `--env prod|test` 切换不同环境的数据库配置。
+`fetch-mongo` 通过环境变量连接数据库；集合、匹配字段和返回字段通过 CLI 参数按查询传入。
 
 | 变量 | 用途 |
 |------|------|
 | `MONGO_URI` | 生产环境 MongoDB 连接串 |
-| `MONGO_DB` | 数据库名 |
-| `MONGO_COLLECTION` | 集合名 |
-| `MONGO_LOOKUP_FIELD` | 匹配字段（默认 `userNo`，查询 `_id` 时自动转为 ObjectId） |
-| `MONGO_RETURN_FIELDS` | 返回字段（逗号分隔） |
+| `MONGO_DB` | 生产环境数据库名 |
 | `TEST_MONGO_URI` | 测试环境 MongoDB 连接串 |
 | `TEST_MONGO_DB` | 测试环境数据库名 |
-| `TEST_MONGO_COLLECTION` | 测试环境集合名 |
-| `TEST_MONGO_LOOKUP_FIELD` | 测试环境匹配字段 |
-| `TEST_MONGO_RETURN_FIELDS` | 测试环境返回字段 |
 
-### SQL（预留）
+### SQL
+
+`fetch-sql` 通过环境变量连接数据库；表名、匹配字段和返回字段通过 CLI 参数按查询传入。
 
 | 变量 | 用途 |
 |------|------|

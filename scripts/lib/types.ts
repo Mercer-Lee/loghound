@@ -356,12 +356,6 @@ export interface FetchLogsArgs {
   _fallbackInfo?: FallbackInfo;
 }
 
-export interface FetchUidArgs {
-  userNo: string;
-  json: boolean;
-  env: string;
-}
-
 export interface FetchWebhookArgs {
   taskId: string;
   apiUrl: string | undefined;
@@ -370,10 +364,27 @@ export interface FetchWebhookArgs {
   json: boolean;
 }
 
-export interface UidResult {
+export interface FetchSqlArgs {
+  query: string;
+  table: string;
+  lookupField: string;
+  returnFields: string;
+  env: string;
+  json: boolean;
+}
+
+export interface FetchMongoArgs {
+  query: string;
+  collection: string;
+  lookupField: string;
+  returnFields?: string;
+  env: string;
+  json: boolean;
+}
+
+export interface LookupResult {
   success: boolean;
   lookupValue: string;
-  uid: string | null;
   error?: string;
   [key: string]: unknown;
 }
